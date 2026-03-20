@@ -1,0 +1,48 @@
+========================================
+  各内存区域 OOM 实战
+========================================
+
+  运行方式：每次取消注释一个方法来测试
+  (同时运行多个会互相干扰)
+
+--- 直接内存溢出演示 ---
+参数: -XX:MaxDirectMemorySize=5m
+
+  直接内存（Direct Memory）不在 JVM 堆中，在操作系统本地内存中
+  NIO 的 ByteBuffer.allocateDirect() 会分配直接内存
+  优点: 减少一次内存复制（零拷贝），I/O 性能更好
+  缺点: 分配/释放比堆内存慢，不受 -Xmx 控制
+
+  已分配直接内存 1 MB
+  已分配直接内存 2 MB
+  已分配直接内存 3 MB
+  已分配直接内存 4 MB
+  已分配直接内存 5 MB
+
+  ★ 崩溃！OutOfMemoryError: Direct buffer memory
+  已分配 5 MB 后直接内存耗尽
+
+  排查思路：
+  1. 错误信息: OutOfMemoryError: Direct buffer memory
+  2. 堆内存 dump 中看不到大对象（因为不在堆中！）
+  3. 这是容易误判的地方 — 堆 dump 正常但进程内存很大
+  4. 用 NMT (Native Memory Tracking): -XX:NativeMemoryTracking=detail
+  5. 检查 NIO / Netty 是否有直接内存泄漏
+  6. 确保 DirectByteBuffer 用完后被 GC（或手动 Cleaner 释放）
+
+========================================
+  OOM 排查速记：
+  ┌───────────────────────┬─────────────────────┬─────────────────────┐
+  │ 错误                   │ 对应区域             │ 排查工具             │
+  ├───────────────────────┼─────────────────────┼─────────────────────┤
+  │ Java heap space       │ 堆                  │ MAT 分析 heap dump  │
+  │ StackOverflowError    │ 虚拟机栈             │ 看异常堆栈找递归     │
+  │ Metaspace             │ 元空间（方法区）      │ jstat + TraceClass  │
+  │ Direct buffer memory  │ 直接内存（堆外）      │ NMT + 检查 NIO      │
+  └───────────────────────┴─────────────────────┴─────────────────────┘
+
+  生产环境必备参数：
+  -XX:+HeapDumpOnOutOfMemoryError
+  -XX:HeapDumpPath=/path/to/dump.hprof
+  → OOM 时自动生成堆转储，事后分析用
+========================================

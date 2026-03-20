@@ -1,0 +1,103 @@
+========================================
+  字符串常量池演示
+========================================
+
+=== 一、字面量 vs new String() ===
+
+  String s1 = "abc";
+  String s2 = "abc";
+  String s3 = new String("abc");
+
+  s1 == s2 : true   ← 都指向常量池同一个对象
+  s1 == s3 : false  ← s3 是堆中新对象，地址不同
+  s1.equals(s3) : true   ← 值相同
+
+  内存分布：
+  ┌─────────────────────────────────┐
+  │ 常量池:  "abc" ←── s1, s2 都指向这里 │
+  │ 堆:     new String("abc") ←── s3  │
+  └─────────────────────────────────┘
+
+=== 二、String.intern() ===
+
+  String s1 = new String("hello");
+  String s2 = s1.intern();
+  String s3 = "hello";
+
+  s1 == s2 : false  ← s1 是堆对象，s2 是常量池引用
+  s2 == s3 : true   ← 都是常量池中的 "hello"
+
+  intern() 的逻辑：
+    常量池已有该字符串 → 返回池中的引用
+    常量池没有 → (JDK 7+) 把堆对象的引用放入池中，返回该引用
+              → (JDK 6)  复制一份到永久代常量池中，返回新引用
+
+=== 三、intern() 版本差异（经典面试题）===
+
+  String s2 = new String("kun") + new String("gfu");
+  // 此时 "kungfu" 只在堆中，不在常量池
+  String s3 = s2.intern();
+  // intern() 发现常量池没有 "kungfu"
+
+  s2 == s3 : true
+
+  ✓ 当前是 JDK 7+ 行为：
+    intern() 直接把堆对象 s2 的引用放入常量池
+    所以 s3 和 s2 是同一个对象 → true
+
+  对比图示：
+  JDK 6:                         JDK 7+:
+  ┌─────────┐ ┌─────────┐       ┌──────────┐
+  │堆:"kungfu"│ │永久代:    │       │堆: "kungfu"│←── s2
+  │  ↑ s2   │ │"kungfu" │       │     ↑     │
+  │         │ │  ↑ s3   │       │常量池存引用│←── s3
+  └─────────┘ └─────────┘       └──────────┘
+  s2 != s3 (不同对象)             s2 == s3 (同一个对象)
+
+=== 四、字符串拼接原理 ===
+
+  "a" + "b" + "c" == "abc" : true ← 编译器优化为同一个常量
+  final a + final b == "ab" : true ← final 变量编译期可确定
+  x + "b" == "ab" : false  ← 运行期拼接，new 了新对象
+
+  规则总结：
+  "a" + "b"         → 编译期优化为 "ab"（常量折叠）
+  final a + final b → 编译期优化为 "ab"（常量传播）
+  变量 + "b"         → StringBuilder.toString() → 堆中新对象
+
+=== 五、面试题：创建了几个对象？===
+
+  Q1: String s = new String("abc"); 创建了几个对象？
+  A: 最多 2 个
+     对象1: 常量池中的 "abc"（如果之前不存在的话）
+     对象2: 堆中 new 出来的 String 对象
+     如果常量池已有 "abc" → 只创建 1 个（堆中的）
+
+  Q2: String s = new String("a") + new String("b"); 创建了几个对象？
+  A: 最多 6 个
+     对象1: 常量池 "a"
+     对象2: 堆中 new String("a")
+     对象3: 常量池 "b"
+     对象4: 堆中 new String("b")
+     对象5: StringBuilder 对象（编译器生成的拼接工具）
+     对象6: StringBuilder.toString() 生成的 "ab"（在堆中）
+     注意: 常量池中不会有 "ab"（拼接结果不自动入池）
+
+  验证: (new String("a") + new String("b")) == "ab" : false
+  → false，拼接结果在堆中，"ab" 在常量池中，不是同一个对象
+
+========================================
+  字符串常量池速记：
+
+  位置变迁：
+    JDK 6   → 永久代（PermGen）中
+    JDK 7+  → 堆（Heap）中
+    → 移到堆中后可以被 GC 回收，不容易 OOM
+
+  核心规则：
+    1. 字面量 "abc" → 自动进常量池
+    2. new String("abc") → 堆中新对象，不在常量池
+    3. intern() → 有就返回池中的，没有就放进去
+    4. 编译期能确定的拼接 → 优化为一个常量
+    5. 运行期拼接（含变量）→ StringBuilder.toString() → 新对象
+========================================

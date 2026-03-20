@@ -1,0 +1,81 @@
+
+  Read 1 file (ctrl+o to expand)
+
+● 元空间溢出日志分析
+
+  VM 参数解读
+
+  -XX:MaxMetaspaceSize=10m   // 元空间最大 10MB（默认不设上限，用本地内存）
+
+  生产环境一般不设这个参数，这里是为了演示才限制为 10MB。默认情况下元空间使用操作系统本地内存，理论上可以一直增长到系统内存耗尽。
+
+  元空间存了什么？
+
+  元空间存储：类的结构信息（方法、字段、常量池等）
+
+  具体包括：
+
+  ┌────────────┬───────────────────────────────────────────────────┐
+  │    内容    │                       说明                        │
+  ├────────────┼───────────────────────────────────────────────────┤
+  │ Klass 结构 │ 类的元数据（就是对象头 Klass Pointer 指向的东西） │
+  ├────────────┼───────────────────────────────────────────────────┤
+  │ 方法元数据 │ 方法字节码、访问标志、参数信息                    │
+  ├────────────┼───────────────────────────────────────────────────┤
+  │ 常量池     │ 类文件中的符号引用                                │
+  ├────────────┼───────────────────────────────────────────────────┤
+  │ 注解信息   │ @Override、@Service 等注解数据                    │
+  ├────────────┼───────────────────────────────────────────────────┤
+  │ 方法计数器 │ JIT 编译用的调用计数                              │
+  └────────────┴───────────────────────────────────────────────────┘
+
+  为什么这个 Demo 没有真正触发 OOM？
+
+  日志中没有出现 OutOfMemoryError: Metaspace，因为代码是简化版——真正触发需要用 CGLib/Javassist 等字节码库动态生成大量类。Demo 只是说明了原理和排查思路。
+
+  真正触发的代码大概长这样（需要 CGLib 依赖）：
+  while (true) {
+      Enhancer enhancer = new Enhancer();
+      enhancer.setSuperclass(SomeClass.class);
+      enhancer.setCallback((MethodInterceptor) (obj, method, args, proxy) -> proxy.invokeSuper(obj, args));
+      enhancer.setUseCache(false); // 关键：不缓存，每次生成新类
+      enhancer.create();           // 每次在元空间中创建一个新的代理类
+  }
+
+  版本变迁
+
+  JDK 6/7  → 永久代（PermGen），-XX:MaxPermSize 控制，固定大小
+  JDK 8+   → 元空间（Metaspace），-XX:MaxMetaspaceSize 控制，默认不设上限
+
+  永久代的问题：大小固定、难以预估、和堆一起 GC 效率低。元空间用本地内存后这些问题都缓解了。
+
+  生产排查流程
+
+  1. 报错 OutOfMemoryError: Metaspace
+     → 确认是元空间问题（不是堆！heap dump 里看不出来）
+
+  2. jstat -gc <pid>
+     → 看 MC（Metaspace Capacity）和 MU（Metaspace Used）
+     → 如果 MU 持续增长 → 有类在不断被加载
+
+  3. -verbose:class 或 -XX:+TraceClassLoading
+     → 打印每个被加载的类 → 找到是谁在疯狂加载
+
+  4. 常见原因：
+     ┌─────────────────────────┬──────────────────────────┐
+     │ 原因                     │ 场景                      │
+     ├─────────────────────────┼──────────────────────────┤
+     │ CGLib 代理无限创建        │ Spring AOP + useCache=false │
+     │ 反射 inflate             │ Method.invoke 超15次后生成 accessor 类 │
+     │ JSP 热部署               │ 每次修改 JSP 生成新类       │
+     │ 自定义 ClassLoader        │ 没有复用，每次 new 一个     │
+     │ Groovy/脚本引擎           │ 每次 eval 生成新类         │
+     └─────────────────────────┴──────────────────────────┘
+
+  5. 临时解决 → 加大 -XX:MaxMetaspaceSize
+  6. 根本解决 → 找到持续加载类的代码，加缓存或限制代理创建
+
+  ▎ 面试追问：反射调用超过 15 次后会 inflate（膨胀），从 JNI 调用切换为动态生成字节码类调用，提升性能但会在元空间中创建新类。这个阈值由 -Dsun.reflect.inflationThreshold=15 控制。
+
+  ---
+  继续跑 directMemoryOOM()，参数 -XX:MaxDirectMemorySize=5m。

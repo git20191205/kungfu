@@ -1,0 +1,138 @@
+========================================
+  对象内存布局演示
+========================================
+
+=== 一、对象头（Header）===
+
+  对象头由两部分组成（数组对象多一个）：
+
+  1. Mark Word（标记字）:
+     32 位 JVM → 4 bytes
+     64 位 JVM → 8 bytes
+
+     Mark Word 存储内容（64 位，不同状态下复用）：
+     ┌─────────────────────────────────────────────────┐
+     │ 状态        │ 存储内容                           │
+     ├─────────────┼────────────────────────────────────┤
+     │ 无锁        │ hashCode(31) + GC年龄(4) + 偏向位  │
+     │ 偏向锁      │ 线程ID(54) + epoch(2) + GC年龄(4)  │
+     │ 轻量级锁    │ 指向栈中锁记录的指针(62)             │
+     │ 重量级锁    │ 指向 Monitor 对象的指针(62)          │
+     │ GC 标记     │ 空（标记为可回收）                   │
+     └─────────────┴────────────────────────────────────┘
+
+     → hashCode 在无锁状态时存在 Mark Word 中
+     → 加了 synchronized 后，hashCode 被挤走（存到 Monitor 里）
+     → GC 年龄只有 4 bit → 最大值 15 → 所以 MaxTenuringThreshold 最大 15
+
+  2. 类型指针（Class Pointer / Klass Pointer）:
+     指向方法区中该类的 Klass 元数据
+     开启压缩指针（-XX:+UseCompressedOops，默认开启）→ 4 bytes
+     关闭压缩指针 → 8 bytes
+
+  3. 数组长度（仅数组对象）:
+     4 bytes，记录数组的 length
+
+=== 二、实例数据（Instance Data）===
+
+  各基本类型占用大小：
+  ┌───────────┬────────┐
+  │ 类型       │ 大小    │
+  ├───────────┼────────┤
+  │ boolean   │ 1 byte │
+  │ byte      │ 1 byte │
+  │ short     │ 2 bytes│
+  │ char      │ 2 bytes│
+  │ int       │ 4 bytes│
+  │ float     │ 4 bytes│
+  │ long      │ 8 bytes│
+  │ double    │ 8 bytes│
+  │ reference │ 4 bytes│ （压缩指针开启时）
+  └───────────┴────────┘
+
+=== 三、对齐填充（Padding）===
+
+  HotSpot 要求对象大小必须是 8 字节的倍数
+  不够的部分用 0 填充（纯粹浪费，但 CPU 访问对齐内存更快）
+
+=== 四、对象大小计算（64 位 JVM，开启压缩指针）===
+
+  1. new Object():
+     Mark Word:    8 bytes
+     Class Pointer: 4 bytes
+     实例数据:       0 bytes（没有字段）
+     小计:          12 bytes
+     对齐填充:       4 bytes（补到 16）
+     ★ 总计:        16 bytes
+
+     验证: new Object() 的 hashCode = 1603195447
+     (hashCode 存在 Mark Word 的高 31 位中)
+
+  2. new EmptyObject():
+     和 Object 一样 = 16 bytes（空类也有对象头）
+
+  3. new OneIntObject():
+     Mark Word:    8 bytes
+     Class Pointer: 4 bytes
+     int value:     4 bytes
+     小计:          16 bytes（刚好 8 的倍数）
+     对齐填充:       0 bytes
+     ★ 总计:        16 bytes
+
+  4. new OneLongObject():
+     Mark Word:    8 bytes
+     Class Pointer: 4 bytes
+     对齐 gap:      4 bytes（long 要 8 字节对齐）
+     long value:    8 bytes
+     ★ 总计:        24 bytes
+
+  5. new MultiFieldObject():
+     Mark Word:     8 bytes
+     Class Pointer:  4 bytes
+     int a:          4 bytes
+     long b:         8 bytes
+     boolean c:      1 byte
+     Object d(ref):  4 bytes（压缩指针）
+     小计:           29 bytes
+     对齐填充:        3 bytes（补到 32）
+     ★ 总计:         32 bytes
+     注意: JVM 可能重排字段顺序以减少 padding
+
+  6. new int[10]:
+     Mark Word:      8 bytes
+     Class Pointer:   4 bytes
+     数组长度:         4 bytes（数组特有）
+     实例数据:         10 × 4 = 40 bytes
+     小计:            56 bytes（刚好 8 的倍数）
+     ★ 总计:          56 bytes
+     验证: arr.length = 10
+
+  7. new Child():
+     Mark Word:       8 bytes
+     Class Pointer:    4 bytes
+     parentField(int): 4 bytes（父类字段先排）
+     childField(int):  4 bytes（子类字段后排）
+     小计:             20 bytes
+     对齐填充:          4 bytes（补到 24）
+     ★ 总计:           24 bytes
+     → 父类字段在前，子类字段在后，不会混在一起
+
+========================================
+  面试经典问题：
+
+  Q: new Object() 占多少内存？
+  A: 16 bytes（64位JVM，开启压缩指针）
+     = Mark Word(8) + Klass Pointer(4) + Padding(4)
+
+  Q: GC 年龄最大为什么是 15？
+  A: Mark Word 中 GC 年龄只有 4 bit，最大值 = 2^4 - 1 = 15
+
+  Q: synchronized 的锁信息存在哪里？
+  A: 对象头的 Mark Word 中
+     偏向锁 → 存线程ID
+     轻量级锁 → 存指向栈中 Lock Record 的指针
+     重量级锁 → 存指向 Monitor 对象的指针
+
+  Q: 为什么要对齐填充？
+  A: CPU 按 8 字节块读内存，对齐后避免跨块访问，提升性能
+========================================

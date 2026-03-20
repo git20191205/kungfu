@@ -4,6 +4,7 @@ target/
 # IDE - IntelliJ IDEA
 .idea/
 *.iml
+out/
 
 # IDE - Eclipse
 .classpath

@@ -1,0 +1,67 @@
+❯ 堆溢出日志: com/kungfu/jvm/d1_memory_model/docs/05.OOMDemo_1_日志_堆溢出.txt
+
+  Read 1 file (ctrl+o to expand)
+
+● 堆溢出日志分析
+
+  VM 参数解读
+
+  -Xms10m                          // 堆初始大小 10MB
+  -Xmx10m                          // 堆最大大小 10MB（Xms=Xmx 防止堆动态扩容）
+  -XX:+HeapDumpOnOutOfMemoryError   // OOM 时自动生成 heap dump 文件
+
+  Xms == Xmx 是生产环境推荐做法，避免 GC 后堆反复扩缩带来的性能抖动。
+
+  运行过程
+
+  已分配 1 MB
+  ...
+  已分配 7 MB
+  ★ 崩溃！OutOfMemoryError: Java heap space
+
+  每次循环 new byte[1024 * 1024] 分配 1MB，list 持有引用不释放。
+
+  为什么是 7MB 而不是 10MB？ 因为 10MB 堆不是全给你用的：
+  - 堆 = 新生代 + 老年代
+  - 新生代中 Eden + S0 + S1，其中 S0 和 S1 有一个始终空着（复制算法）
+  - JVM 自身也占用部分堆空间（类对象、内部数据结构等）
+  - 所以实际可用约 7-8MB，分配第 8 个 1MB 时触发 GC，GC 后仍然不够 → OOM
+
+  错误类型
+
+  OutOfMemoryError: Java heap space
+
+  关键字 Java heap space → 明确指向堆内存不足。和其他 OOM 的区分：
+
+  ┌──────────────────────┬──────────────┬──────────────────────────────────┐
+  │       错误信息       │     区域     │             排查方向             │
+  ├──────────────────────┼──────────────┼──────────────────────────────────┤
+  │ Java heap space      │ 堆           │ dump 文件 → MAT 分析大对象       │
+  ├──────────────────────┼──────────────┼──────────────────────────────────┤
+  │ StackOverflowError   │ 虚拟机栈     │ 看堆栈 → 找递归                  │
+  ├──────────────────────┼──────────────┼──────────────────────────────────┤
+  │ Metaspace            │ 元空间       │ jstat 看类加载数 → 动态代理/反射 │
+  ├──────────────────────┼──────────────┼──────────────────────────────────┤
+  │ Direct buffer memory │ 堆外直接内存 │ NMT → 检查 NIO/Netty             │
+  └──────────────────────┴──────────────┴──────────────────────────────────┘
+
+  生产排查流程
+
+  1. -XX:+HeapDumpOnOutOfMemoryError  → OOM 瞬间自动 dump
+     -XX:HeapDumpPath=/path/dump.hprof → 指定 dump 路径
+
+  2. MAT / VisualVM 打开 dump 文件
+     → Dominator Tree 找占内存最大的对象
+     → GC Roots 分析谁持有引用
+
+  3. 判断：
+     内存泄漏 → 对象不该活但还活着（如 static List 忘记 remove）→ 修代码
+     内存不足 → 对象确实都需要 → 加大 -Xmx 或优化数据结构（如分页查询代替全量加载）
+
+  线上常见原因：
+  - static List/Map 无限增长，忘记清理
+  - 一次 SQL 查百万行全加载到内存
+  - 本地缓存没有淘汰策略（应该用 LRU + maxSize）
+
+  ---
+  继续跑 stackOverflow()（参数 -Xss256k）和 directMemoryOOM()（参数 -XX:MaxDirectMemorySize=5m），日志发给我分析。
