@@ -1,0 +1,19 @@
+---
+ 日志详见：com/kungfu/jvm/d2_gc/docs/02.GarbageCollectorDemo日志输出.txt
+
+  Read 1 file (ctrl+o to expand)
+
+● 和上次同样的问题 — 没加 VM options，默认堆 14GB，GC 一次都没触发。
+
+  看第 6-9 行：
+  堆内存 max = 14855168K（约14GB）
+  回收器: PS Scavenge + PS MarkSweep    ← 默认的 Parallel 组合
+  GC 回收 0 次
+
+  堆太大了，20MB 的分配对 14GB 来说毫无压力。
+
+  这次请加 VM options 重跑，在 IDEA 的 Edit Configurations → Modify options → Add VM options：
+
+  -Xms20m -Xmx20m -Xmn10m -XX:+PrintGCDetails -XX:+UseSerialGC
+
+  加对的标志：输出的堆内存应该显示 max = 20480K，回收器应该显示 Copy + MarkSweepCompact（而不是 PS Scavenge）。

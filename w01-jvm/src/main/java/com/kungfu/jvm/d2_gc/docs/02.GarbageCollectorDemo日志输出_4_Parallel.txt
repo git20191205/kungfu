@@ -1,0 +1,57 @@
+========================================
+  垃圾回收器实战对比
+========================================
+
+当前 JVM 信息：
+  堆内存: init = 20971520(20480K) used = 1925528(1880K) committed = 19922944(19456K) max = 19922944(19456K)
+  当前使用的垃圾回收器:
+    - PS Scavenge
+    - PS MarkSweep
+
+开始制造 GC 压力...
+
+[GC (Allocation Failure) [PSYoungGen: 8024K->864K(9216K)] 8024K->1896K(19456K), 0.0017608 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [第5轮] 分配 2MB 长期对象，可能触发老年代 GC
+[GC (Allocation Failure) [PSYoungGen: 8190K->896K(9216K)] 9222K->5000K(19456K), 0.0011971 secs] [Times: user=0.03 sys=0.00, real=0.00 secs]
+  [第10轮] 分配 2MB 长期对象，可能触发老年代 GC
+[GC (Allocation Failure) [PSYoungGen: 8388K->824K(9216K)] 12492K->8000K(19456K), 0.0122798 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 824K->0K(9216K)] [ParOldGen: 7176K->5764K(10240K)] 8000K->5764K(19456K), [Metaspace: 3504K->3504K(1056768K)], 0.0033485 secs] [Times: user=0.09 sys=0.06, real=0.00 secs]
+  [第15轮] 分配 2MB 长期对象，可能触发老年代 GC
+
+长期存活对象总大小: 6144 KB
+
+GC 统计：
+  PS Scavenge: 回收 3 次, 总耗时 15 ms
+  PS MarkSweep: 回收 1 次, 总耗时 3 ms
+
+========================================
+  回收器速记：
+  ┌─────────────┬──────────┬──────────┬───────────────┐
+  │   回收器      │  算法    │  线程    │ 适用场景       │
+  ├─────────────┼──────────┼──────────┼───────────────┤
+  │ Serial       │ 复制     │ 单线程   │ Client/小堆    │
+  │ ParNew       │ 复制     │ 多线程   │ 配合CMS       │
+  │ Parallel Scav│ 复制     │ 多线程   │ 高吞吐(默认)   │
+  │ Serial Old   │ 标记-整理│ 单线程   │ CMS后备       │
+  │ Parallel Old │ 标记-整理│ 多线程   │ 配合PS        │
+  │ CMS          │ 标记-清除│ 并发     │ 低延迟        │
+  │ G1           │ 分区+复制│ 并发     │ 大堆/均衡     │
+  └─────────────┴──────────┴──────────┴───────────────┘
+
+  面试黄金搭配：
+  JDK 8 默认  → Parallel Scavenge + Parallel Old（吞吐优先）
+  JDK 8 低延迟 → ParNew + CMS
+  JDK 9+      → G1（默认，推荐）
+  JDK 11+     → 可选 ZGC（超低延迟，实验性）
+========================================
+Heap
+ PSYoungGen      total 9216K, used 6385K [0x00000000ff600000, 0x0000000100000000, 0x0000000100000000)
+  eden space 8192K, 77% used [0x00000000ff600000,0x00000000ffc3c580,0x00000000ffe00000)
+  from space 1024K, 0% used [0x00000000ffe00000,0x00000000ffe00000,0x00000000fff00000)
+  to   space 1024K, 0% used [0x00000000fff00000,0x00000000fff00000,0x0000000100000000)
+ ParOldGen       total 10240K, used 5764K [0x00000000fec00000, 0x00000000ff600000, 0x00000000ff600000)
+  object space 10240K, 56% used [0x00000000fec00000,0x00000000ff1a1090,0x00000000ff600000)
+ Metaspace       used 3515K, capacity 4564K, committed 4864K, reserved 1056768K
+  class space    used 384K, capacity 388K, committed 512K, reserved 1048576K
+
+Process finished with exit code 0

@@ -1,0 +1,63 @@
+========================================
+  垃圾回收器实战对比
+========================================
+
+当前 JVM 信息：
+  堆内存: init = 20971520(20480K) used = 1925576(1880K) committed = 19922944(19456K) max = 19922944(19456K)
+  当前使用的垃圾回收器:
+    - ParNew
+    - ConcurrentMarkSweep
+
+开始制造 GC 压力...
+
+[GC (Allocation Failure) [ParNew: 8024K->879K(9216K), 0.0008840 secs] 8024K->1905K(19456K), 0.0009124 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [第5轮] 分配 2MB 长期对象，可能触发老年代 GC
+[GC (Allocation Failure) [ParNew: 8206K->76K(9216K), 0.0020802 secs] 9232K->4865K(19456K), 0.0020931 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [第10轮] 分配 2MB 长期对象，可能触发老年代 GC
+[GC (Allocation Failure) [ParNew: 7404K->19K(9216K), 0.0006070 secs] 12194K->7880K(19456K), 0.0006171 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[GC (CMS Initial Mark) [1 CMS-initial-mark: 7861K(10240K)] 9928K(19456K), 0.0001242 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[CMS-concurrent-mark-start]
+  [第15轮] 分配 2MB 长期对象，可能触发老年代 GC
+
+长期存活对象总大小: 6144 KB
+
+GC 统计：
+  ParNew: 回收 3 次, 总耗时 3 ms
+  ConcurrentMarkSweep: 回收 0 次, 总耗时 0 ms
+
+========================================
+  回收器速记：
+  ┌─────────────┬──────────┬──────────┬───────────────┐
+  │   回收器      │  算法    │  线程    │ 适用场景       │
+  ├─────────────┼──────────┼──────────┼───────────────┤
+  │ Serial       │ 复制     │ 单线程   │ Client/小堆    │
+  │ ParNew       │ 复制     │ 多线程   │ 配合CMS       │
+  │ Parallel Scav│ 复制     │ 多线程   │ 高吞吐(默认)   │
+  │ Serial Old   │ 标记-整理│ 单线程   │ CMS后备       │
+  │ Parallel Old │ 标记-整理│ 多线程   │ 配合PS        │
+  │ CMS          │ 标记-清除│ 并发     │ 低延迟        │
+[CMS-concurrent-mark: 0.000/0.000 secs]  │ G1           │ 分区+复制│ 并发     │ 大堆/均衡     │ [Times: user=0.00 sys=0.00, real=0.00 secs]
+
+  └─────────────┴──────────┴──────────┴───────────────┘
+[CMS-concurrent-preclean-start]
+
+  面试黄金搭配：
+  JDK 8 默认  → Parallel Scavenge + Parallel Old（吞吐优先）
+  JDK 8 低延迟 → ParNew + CMS
+[CMS-concurrent-preclean: 0.000/0.000 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[CMS-concurrent-abortable-preclean-start]
+[CMS-concurrent-abortable-preclean: 0.000/0.000 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  JDK 9+      → G1（默认，推荐）
+[GC (CMS Final Remark) [YG occupancy: 6323 K (9216 K)][Rescan (parallel) , 0.0002202 secs][weak refs processing, 0.0000067 secs][class unloading, 0.0001219 secs][scrub symbol table, 0.0001620 secs][scrub string table, 0.0000420 secs][1 CMS-remark: 7861K(10240K)] 14185K(19456K), 0.0005797 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  JDK 11+     → 可选 ZGC（超低延迟，实验性）[CMS-concurrent-sweep-start]
+
+========================================
+Heap
+ par new generation   total 9216K, used 6651K [0x00000000fec00000, 0x00000000ff600000, 0x00000000ff600000)
+  eden space 8192K,  80% used [0x00000000fec00000, 0x00000000ff27a190, 0x00000000ff400000)
+  from space 1024K,   1% used [0x00000000ff500000, 0x00000000ff504c38, 0x00000000ff600000)
+  to   space 1024K,   0% used [0x00000000ff400000, 0x00000000ff400000, 0x00000000ff500000)
+ concurrent mark-sweep generation total 10240K, used 5812K [0x00000000ff600000, 0x0000000100000000, 0x0000000100000000)
+ Metaspace       used 3515K, capacity 4564K, committed 4864K, reserved 1056768K
+  class space    used 384K, capacity 388K, committed 512K, reserved 1048576K
+

@@ -1,0 +1,42 @@
+❯ ObjectFinalizationDemo 的日志：com/kungfu/jvm/d2_gc/docs/05.ObjectFinalizationDemo_日志输出.txt
+
+  Read 1 file (ctrl+o to expand)
+
+● 完美验证！同一个对象，两次命运截然不同：
+
+  第一次 GC — 自救成功
+
+  第 8 行:  SAVE_HOOK = null → 对象不可达
+  第 10 行: [finalize] 小明 的 finalize() 被调用了！
+  第 11 行: 正在自救 — 把自己重新赋给类变量 SAVE_HOOK
+  第 12 行: ✓ 自救成功！对象还活着
+
+  过程：
+  1. SAVE_HOOK = null → 对象失去 GC Root 引用 → 第一次标记为不可达
+  2. JVM 检查：有没有重写 finalize()？→ 有，且没调用过 → 放入 F-Queue
+  3. Finalizer 线程执行 finalize() → 里面执行了 SAVE_HOOK = this
+  4. 第二次标记：对象重新可达了（挂在了静态变量上）→ 移出回收集合
+  5. 结果：对象复活
+
+  第二次 GC — 自救失败
+
+  第 16 行: 再次 SAVE_HOOK = null → 对象又不可达了
+  第 18 行: × 自救失败！对象被回收了
+  第 19 行: 因为 finalize() 只会被 JVM 调用一次
+
+  过程：
+  1. SAVE_HOOK = null → 对象再次不可达 → 第一次标记
+  2. JVM 检查：finalize() 已经调用过了 → 不再执行 → 直接判死刑
+  3. 结果：对象被回收，SAVE_HOOK == null
+
+  面试这样答
+
+  ▎ Q: 对象被 GC 回收前有没有自救的机会？
+
+  ▎ 有。如果重写了 finalize() 且之前没调用过，JVM 会在回收前把对象放入 F-Queue，由 Finalizer 线程执行 finalize()。在 finalize() 中可以把 this 重新赋给某个 GC Root 可达的引用，对象就复活了。但只能自救一次，第二次 GC 不会再调用
+  finalize()。
+
+  ▎ 实际开发不推荐用 finalize()：优先级低不保证执行、只能救一次、拖慢 GC、Java 9 已废弃。用 try-with-resources 替代。
+
+  ---
+  D2 全部 6 个 Demo 学完了。SafePointDemo 以理解原理为主，可以选择跑一下看看。要提交 D2 还是继续 D3？

@@ -1,0 +1,63 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=61241 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.jvm.d2_gc.GCAlgorithmDemo
+========================================
+  GC 算法对比演示
+========================================
+
+=== 算法一：标记-清除（Mark-Sweep）===
+  原理：先标记所有存活对象，再清除未标记的对象
+
+  Step 1 - 初始堆状态（■=存活 □=垃圾）:
+  [GC前] |■|□|■|■|□|■|□|□|■|□|
+
+  Step 2 - 标记阶段：从 GC Roots 遍历，标记存活对象 A,B,C,D,E
+  Step 3 - 清除阶段：回收所有未标记对象
+  [GC后] |■|□|■|■|□|■|□|□|■|□|
+
+  ⚠ 问题：产生内存碎片！
+    □ 是空闲的，但不连续，无法分配大对象
+    比如要分配 3 个连续槽位的对象 → 放不下！虽然总空闲有 5 个
+
+=== 算法二：标记-复制（Copying）===
+  原理：将内存分为两半，存活对象复制到另一半，原区域整体清空
+  → 新生代 Eden + S0 + S1 就是用这种算法（S0 和 S1 轮流复制）
+
+  Step 1 - 初始状态:
+  [From] |■|□|■|■|□|■|□|□|■|□|
+  [To  ] |□|□|□|□|□|□|□|□|□|□|
+
+  Step 2 - 复制存活对象到 To 区，From 区整体清空:
+  [From] |□|□|□|□|□|□|□|□|□|□|
+  [To  ] |■|■|■|■|■|□|□|□|□|□|
+
+  ✓ 优点：无碎片！存活对象紧凑排列
+  ✓ 适合新生代：大部分对象朝生夕死，存活率低，复制少量对象很快
+  ⚠ 缺点：浪费一半空间（所以 HotSpot 用 Eden:S0:S1 = 8:1:1 优化）
+
+=== 算法三：标记-整理（Mark-Compact）===
+  原理：标记存活对象，然后将它们向一端移动，清理边界外的空间
+  → 老年代用这种算法（对象存活率高，复制成本太大）
+
+  Step 1 - 初始状态:
+  [整理前] |■|□|■|■|□|■|□|□|■|□|
+
+  Step 2 - 存活对象向左端移动，紧凑排列:
+  [整理后] |■|■|■|■|■|□|□|□|□|□|
+
+  ✓ 优点：无碎片，不浪费空间
+  ⚠ 缺点：移动对象需要更新引用，STW（Stop-The-World）时间更长
+  → 所以 CMS 用「标记-清除」减少停顿，但会有碎片，碎片严重时退化为 Serial Old 做整理
+
+========================================
+  三种算法对比速记：
+  ┌──────────────┬──────┬──────┬──────────┐
+  │    算法       │ 碎片 │ 空间 │ 移动对象  │
+  ├──────────────┼──────┼──────┼──────────┤
+  │ 标记-清除     │  有  │ 不浪费│   不移动  │
+  │ 标记-复制     │  无  │ 浪费半│   复制    │
+  │ 标记-整理     │  无  │ 不浪费│   移动    │
+  └──────────────┴──────┴──────┴──────────┘
+
+  新生代 → 复制算法（对象存活率低，复制少）
+  老年代 → 标记-整理 或 标记-清除
+========================================
+

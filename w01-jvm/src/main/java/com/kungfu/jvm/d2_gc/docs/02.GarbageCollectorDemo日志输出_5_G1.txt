@@ -1,0 +1,235 @@
+========================================
+  垃圾回收器实战对比
+========================================
+
+当前 JVM 信息：
+  堆内存: init = 20971520(20480K) used = 1048576(1024K) committed = 20971520(20480K) max = 20971520(20480K)
+  当前使用的垃圾回收器:
+    - G1 Young Generation
+    - G1 Old Generation
+
+开始制造 GC 压力...
+
+[GC pause (G1 Humongous Allocation) (young) (initial-mark), 0.0011111 secs]
+   [Parallel Time: 0.7 ms, GC Workers: 20]
+      [GC Worker Start (ms): Min: 55.4, Avg: 55.5, Max: 55.6, Diff: 0.2]
+      [Ext Root Scanning (ms): Min: 0.0, Avg: 0.3, Max: 0.5, Diff: 0.5, Sum: 5.6]
+      [Update RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+         [Processed Buffers: Min: 0, Avg: 0.0, Max: 0, Diff: 0, Sum: 0]
+      [Scan RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Code Root Scanning (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Object Copy (ms): Min: 0.0, Avg: 0.1, Max: 0.3, Diff: 0.3, Sum: 2.4]
+      [Termination (ms): Min: 0.0, Avg: 0.0, Max: 0.1, Diff: 0.1, Sum: 1.0]
+         [Termination Attempts: Min: 1, Avg: 4.3, Max: 11, Diff: 10, Sum: 87]
+      [GC Worker Other (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.2]
+      [GC Worker Total (ms): Min: 0.4, Avg: 0.5, Max: 0.6, Diff: 0.2, Sum: 9.2]
+      [GC Worker End (ms): Min: 56.0, Avg: 56.0, Max: 56.0, Diff: 0.0]
+   [Code Root Fixup: 0.0 ms]
+   [Code Root Purge: 0.0 ms]
+   [Clear CT: 0.1 ms]
+   [Other: 0.3 ms]
+      [Choose CSet: 0.0 ms]
+      [Ref Proc: 0.2 ms]
+      [Ref Enq: 0.0 ms]
+      [Redirty Cards: 0.1 ms]
+      [Humongous Register: 0.0 ms]
+      [Humongous Reclaim: 0.0 ms]
+      [Free CSet: 0.0 ms]
+   [Eden: 2048.0K(12.0M)->0.0B(8192.0K) Survivors: 0.0B->1024.0K Heap: 6144.1K(20.0M)->872.1K(20.0M)]
+ [Times: user=0.00 sys=0.00, real=0.00 secs]
+[GC concurrent-root-region-scan-start]
+[GC concurrent-root-region-scan-end, 0.0002339 secs]
+[GC concurrent-mark-start]
+[GC concurrent-mark-end, 0.0000279 secs]
+[GC remark [Finalize Marking, 0.0001534 secs] [GC ref-proc, 0.0000704 secs] [Unloading, 0.0005149 secs], 0.0008620 secs]
+ [Times: user=0.00 sys=0.00, real=0.00 secs]
+[GC cleanup 5131K->5131K(20M), 0.0004466 secs]
+ [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [第5轮] 分配 2MB 长期对象，可能触发老年代 GC
+[GC pause (G1 Humongous Allocation) (young), 0.0009416 secs]
+   [Parallel Time: 0.5 ms, GC Workers: 20]
+      [GC Worker Start (ms): Min: 59.2, Avg: 59.5, Max: 59.6, Diff: 0.4]
+      [Ext Root Scanning (ms): Min: 0.0, Avg: 0.0, Max: 0.1, Diff: 0.1, Sum: 0.7]
+      [Update RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+         [Processed Buffers: Min: 0, Avg: 0.0, Max: 0, Diff: 0, Sum: 0]
+      [Scan RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Code Root Scanning (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Object Copy (ms): Min: 0.0, Avg: 0.1, Max: 0.2, Diff: 0.2, Sum: 1.4]
+      [Termination (ms): Min: 0.0, Avg: 0.0, Max: 0.1, Diff: 0.1, Sum: 0.9]
+         [Termination Attempts: Min: 1, Avg: 2.6, Max: 11, Diff: 10, Sum: 53]
+      [GC Worker Other (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.1]
+      [GC Worker Total (ms): Min: 0.0, Avg: 0.2, Max: 0.4, Diff: 0.4, Sum: 3.2]
+      [GC Worker End (ms): Min: 59.6, Avg: 59.6, Max: 59.7, Diff: 0.0]
+   [Code Root Fixup: 0.0 ms]
+   [Code Root Purge: 0.0 ms]
+   [Clear CT: 0.1 ms]
+   [Other: 0.3 ms]
+      [Choose CSet: 0.0 ms]
+      [Ref Proc: 0.2 ms]
+      [Ref Enq: 0.0 ms]
+      [Redirty Cards: 0.1 ms]
+      [Humongous Register: 0.0 ms]
+      [Humongous Reclaim: 0.0 ms]
+      [Free CSet: 0.0 ms]
+   [Eden: 1024.0K(8192.0K)->0.0B(7168.0K) Survivors: 1024.0K->1024.0K Heap: 10.0M(20.0M)->3896.1K(20.0M)]
+ [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [第10轮] 分配 2MB 长期对象，可能触发老年代 GC
+[GC pause (G1 Humongous Allocation) (young) (initial-mark), 0.0009875 secs]
+   [Parallel Time: 0.6 ms, GC Workers: 20]
+      [GC Worker Start (ms): Min: 60.5, Avg: 60.6, Max: 60.7, Diff: 0.2]
+      [Ext Root Scanning (ms): Min: 0.0, Avg: 0.1, Max: 0.2, Diff: 0.2, Sum: 2.3]
+      [Update RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+         [Processed Buffers: Min: 0, Avg: 0.0, Max: 0, Diff: 0, Sum: 0]
+      [Scan RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Code Root Scanning (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Object Copy (ms): Min: 0.2, Avg: 0.2, Max: 0.3, Diff: 0.1, Sum: 4.8]
+      [Termination (ms): Min: 0.0, Avg: 0.0, Max: 0.1, Diff: 0.1, Sum: 0.7]
+         [Termination Attempts: Min: 1, Avg: 2.0, Max: 6, Diff: 5, Sum: 41]
+      [GC Worker Other (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [GC Worker Total (ms): Min: 0.3, Avg: 0.4, Max: 0.5, Diff: 0.2, Sum: 7.8]
+      [GC Worker End (ms): Min: 61.0, Avg: 61.0, Max: 61.0, Diff: 0.0]
+   [Code Root Fixup: 0.0 ms]
+   [Code Root Purge: 0.0 ms]
+   [Clear CT: 0.1 ms]
+   [Other: 0.3 ms]
+      [Choose CSet: 0.0 ms]
+      [Ref Proc: 0.2 ms]
+      [Ref Enq: 0.0 ms]
+      [Redirty Cards: 0.1 ms]
+      [Humongous Register: 0.0 ms]
+      [Humongous Reclaim: 0.0 ms]
+      [Free CSet: 0.0 ms]
+   [Eden: 1024.0K(7168.0K)->0.0B(7168.0K) Survivors: 1024.0K->1024.0K Heap: 6230.8K(20.0M)->4823.3K(20.0M)]
+ [Times: user=0.02 sys=0.00, real=0.00 secs]
+[GC concurrent-root-region-scan-start]
+[GC concurrent-root-region-scan-end, 0.0000294 secs]
+[GC concurrent-mark-start]
+[GC pause (G1 Humongous Allocation) (young), 0.0007062 secs]
+   [Parallel Time: 0.3 ms, GC Workers: 20]
+      [GC Worker Start (ms): Min: 61.8, Avg: 61.9, Max: 62.1, Diff: 0.2]
+      [Ext Root Scanning (ms): Min: 0.0, Avg: 0.0, Max: 0.1, Diff: 0.1, Sum: 1.0]
+      [Update RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.1]
+         [Processed Buffers: Min: 0, Avg: 0.1, Max: 1, Diff: 1, Sum: 2]
+      [Scan RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Code Root Scanning (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Object Copy (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Termination (ms): Min: 0.0, Avg: 0.1, Max: 0.1, Diff: 0.1, Sum: 1.4]
+         [Termination Attempts: Min: 1, Avg: 1.0, Max: 1, Diff: 0, Sum: 20]
+      [GC Worker Other (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.1]
+      [GC Worker Total (ms): Min: 0.0, Avg: 0.1, Max: 0.2, Diff: 0.2, Sum: 2.5]
+      [GC Worker End (ms): Min: 62.1, Avg: 62.1, Max: 62.1, Diff: 0.0]
+   [Code Root Fixup: 0.0 ms]
+   [Code Root Purge: 0.0 ms]
+   [Clear CT: 0.1 ms]
+   [Other: 0.3 ms]
+      [Choose CSet: 0.0 ms]
+      [Ref Proc: 0.2 ms]
+      [Ref Enq: 0.0 ms]
+      [Redirty Cards: 0.1 ms]
+      [Humongous Register: 0.0 ms]
+      [Humongous Reclaim: 0.0 ms]
+      [Free CSet: 0.0 ms]
+   [Eden: 0.0B(7168.0K)->0.0B(5120.0K) Survivors: 1024.0K->1024.0K Heap: 9943.3K(20.0M)->5820.4K(20.0M)]
+ [Times: user=0.00 sys=0.00, real=0.00 secs]
+[GC concurrent-mark-end, 0.0011301 secs]
+[GC remark [Finalize Marking, 0.0001825 secs] [GC ref-proc, 0.0000694 secs] [Unloading, 0.0004856 secs], 0.0008950 secs]
+ [Times: user=0.00 sys=0.00, real=0.00 secs]
+[GC cleanup 7970K->7970K(20M), 0.0004684 secs]
+ [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [第15轮] 分配 2MB 长期对象，可能触发老年代 GC
+[GC pause (G1 Humongous Allocation) (young), 0.0007662 secs]
+   [Parallel Time: 0.3 ms, GC Workers: 20]
+      [GC Worker Start (ms): Min: 65.2, Avg: 65.3, Max: 65.4, Diff: 0.2]
+      [Ext Root Scanning (ms): Min: 0.0, Avg: 0.1, Max: 0.1, Diff: 0.1, Sum: 1.1]
+      [Update RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.2]
+         [Processed Buffers: Min: 0, Avg: 0.1, Max: 1, Diff: 1, Sum: 3]
+      [Scan RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Code Root Scanning (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Object Copy (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Termination (ms): Min: 0.0, Avg: 0.0, Max: 0.1, Diff: 0.1, Sum: 0.8]
+         [Termination Attempts: Min: 1, Avg: 1.0, Max: 1, Diff: 0, Sum: 20]
+      [GC Worker Other (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.1]
+      [GC Worker Total (ms): Min: 0.0, Avg: 0.1, Max: 0.2, Diff: 0.2, Sum: 2.1]
+      [GC Worker End (ms): Min: 65.4, Avg: 65.4, Max: 65.5, Diff: 0.0]
+   [Code Root Fixup: 0.0 ms]
+   [Code Root Purge: 0.0 ms]
+   [Clear CT: 0.1 ms]
+   [Other: 0.4 ms]
+      [Choose CSet: 0.0 ms]
+      [Ref Proc: 0.2 ms]
+      [Ref Enq: 0.0 ms]
+      [Redirty Cards: 0.1 ms]
+      [Humongous Register: 0.0 ms]
+      [Humongous Reclaim: 0.0 ms]
+      [Free CSet: 0.0 ms]
+   [Eden: 1024.0K(5120.0K)->0.0B(5120.0K) Survivors: 1024.0K->1024.0K Heap: 10018.9K(20.0M)->6823.6K(20.0M)]
+ [Times: user=0.00 sys=0.00, real=0.00 secs]
+[GC pause (G1 Humongous Allocation) (young) (initial-mark), 0.0007541 secs]
+   [Parallel Time: 0.4 ms, GC Workers: 20]
+      [GC Worker Start (ms): Min: 66.1, Avg: 66.2, Max: 66.3, Diff: 0.2]
+      [Ext Root Scanning (ms): Min: 0.0, Avg: 0.1, Max: 0.2, Diff: 0.2, Sum: 2.2]
+      [Update RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+         [Processed Buffers: Min: 0, Avg: 0.1, Max: 2, Diff: 2, Sum: 2]
+      [Scan RS (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Code Root Scanning (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Object Copy (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.0]
+      [Termination (ms): Min: 0.0, Avg: 0.1, Max: 0.1, Diff: 0.1, Sum: 1.1]
+         [Termination Attempts: Min: 1, Avg: 1.0, Max: 1, Diff: 0, Sum: 20]
+      [GC Worker Other (ms): Min: 0.0, Avg: 0.0, Max: 0.0, Diff: 0.0, Sum: 0.1]
+      [GC Worker Total (ms): Min: 0.1, Avg: 0.2, Max: 0.3, Diff: 0.2, Sum: 3.4]
+      [GC Worker End (ms): Min: 66.4, Avg: 66.4, Max: 66.4, Diff: 0.0]
+   [Code Root Fixup: 0.0 ms]
+   [Code Root Purge: 0.0 ms]
+   [Clear CT: 0.1 ms]
+   [Other: 0.3 ms]
+      [Choose CSet: 0.0 ms]
+      [Ref Proc: 0.2 ms]
+      [Ref Enq: 0.0 ms]
+      [Redirty Cards: 0.1 ms]
+      [Humongous Register: 0.0 ms]
+      [Humongous Reclaim: 0.0 ms]
+      [Free CSet: 0.0 ms]
+   [Eden: 0.0B(5120.0K)->0.0B(5120.0K) Survivors: 1024.0K->1024.0K Heap: 7847.6K(20.0M)->6821.6K(20.0M)]
+ [Times: user=0.00 sys=0.00, real=0.00 secs]
+[GC concurrent-root-region-scan-start]
+[GC concurrent-root-region-scan-end, 0.0000301 secs]
+[GC concurrent-mark-start]
+
+长期存活对象总大小: 6144 KB
+
+GC 统计：
+  G1 Young Generation: 回收 6 次, 总耗时 5 ms
+  G1 Old Generation: 回收 0 次, 总耗时 0 ms
+
+========================================
+  回收器速记：
+  ┌─────────────┬──────────┬──────────┬───────────────┐
+  │   回收器      │  算法    │  线程    │ 适用场景       │
+  ├─────────────┼──────────┼──────────┼───────────────┤
+  │ Serial       │ 复制     │ 单线程   │ Client/小堆    │
+  │ ParNew       │ 复制     │ 多线程   │ 配合CMS       │
+  │ Parallel Scav│ 复制     │ 多线程   │ 高吞吐(默认)   │
+  │ Serial Old   │ 标记-整理│ 单线程   │ CMS后备       │
+  │ Parallel Old │ 标记-整理│ 多线程   │ 配合PS        │
+  │ CMS          │ 标记-清除│ 并发     │ 低延迟        │
+  │ G1           │ 分区+复制│ 并发     │ 大堆/均衡     │
+  └─────────────┴──────────┴──────────┴───────────────┘
+
+  面试黄金搭配：
+  JDK 8 默认  → Parallel Scavenge + Parallel Old（吞吐优先）
+  JDK 8 低延迟 → ParNew + CMS
+  JDK 9+      → G1（默认，推荐）
+  JDK 11+     → 可选 ZGC（超低延迟，实验性）
+========================================
+[GC concurrent-mark-end, 0.0003610 secs]
+[GC remark [Finalize Marking, 0.0001735 secs] [GC ref-proc, 0.0000696 secs] [Unloading, 0.0004273 secs], 0.0008123 secs]
+ [Times: user=0.00 sys=0.00, real=0.00 secs]
+[GC cleanup 7948K->7948K(20M), 0.0003987 secs]
+ [Times: user=0.00 sys=0.00, real=0.00 secs]
+Heap
+ garbage-first heap   total 20480K, used 7845K [0x00000000fec00000, 0x00000000fed000a0, 0x0000000100000000)
+  region size 1024K, 2 young (2048K), 1 survivors (1024K)
+ Metaspace       used 3515K, capacity 4564K, committed 4864K, reserved 1056768K
+  class space    used 384K, capacity 388K, committed 512K, reserved 1048576K
+
+Process finished with exit code 0

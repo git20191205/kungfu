@@ -1,0 +1,44 @@
+========================================
+  对象死亡过程 — 两次标记与 finalize 自救
+========================================
+
+--- 第一次 GC：finalize() 自救 ---
+
+  1. 创建对象: ObjectFinalizationDemo{小明}
+  2. SAVE_HOOK = null → 对象不可达
+  3. 触发 GC...
+  [finalize] 小明 的 finalize() 被调用了！
+  [finalize] 正在自救 — 把自己重新赋给类变量 SAVE_HOOK...
+  4. ✓ 自救成功！对象还活着: ObjectFinalizationDemo{小明}
+
+--- 第二次 GC：finalize() 不会再被调用 ---
+
+  1. 再次 SAVE_HOOK = null → 对象又不可达了
+  2. 触发 GC...
+  3. × 自救失败！对象被回收了
+     → 因为 finalize() 只会被 JVM 调用一次
+     → 第二次 GC 不会再执行 finalize()，直接回收
+
+========================================
+  对象死亡流程：
+
+  第一次标记：可达性分析 → 不可达
+      ↓
+  检查 finalize():
+    没重写 / 已调用过 → 直接回收（死刑立即执行）
+    重写了且未调用过 → 放入 F-Queue
+      ↓
+  Finalizer 线程执行 finalize()
+      ↓
+  第二次标记：
+    finalize() 中重建了引用 → 移出回收集合（自救成功）
+    没有重建引用 → 回收（死刑执行）
+
+  ⚠ finalize() 的问题（为什么不推荐使用）：
+    1. 只能自救一次，第二次不会再调用
+    2. Finalizer 线程优先级低，不保证及时执行
+    3. 如果 finalize() 执行慢，会拖慢 GC
+    4. JVM 甚至不保证 finalize() 一定会执行完
+    → Java 9 已标记 @Deprecated
+    → 用 try-with-resources + AutoCloseable 替代
+========================================

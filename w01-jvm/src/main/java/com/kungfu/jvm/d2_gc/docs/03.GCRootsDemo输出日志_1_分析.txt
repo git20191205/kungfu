@@ -1,0 +1,39 @@
+❯ GCRootsDemo日志: com/kungfu/jvm/d2_gc/docs/03.GCRootsDemo输出日志_1.txt
+
+  Read 1 file (ctrl+o to expand)
+
+● 输出很清晰。逐个解读：
+
+  演示 1：局部变量作为 GC Root
+
+  [作用域内] obj 是 GC Root → 对象存活
+  [出作用域] 槽位未被复用 → 对象可能仍未被回收！
+  [覆盖槽位后] obj 的槽位被 placeholder 覆盖 → 对象可被回收
+
+  关键知识点： 出了 {} 作用域不代表立刻能回收！JVM 的栈帧中，局部变量表的槽位（Slot）是复用的。只有当新变量占用了 obj 原来的 Slot，obj 的引用才真正断开。
+
+  这就是为什么有些代码里会写 obj = null — 不是迷信，在大对象 + 长方法的场景下确实有用。
+
+  演示 2：静态变量作为 GC Root
+
+  staticRef 指向对象 → 不会被回收
+  staticRef = null → 可被回收
+
+  关键知识点： static 变量的生命周期跟类一样长。如果你往 static Map 里不断塞东西又不清理 → 内存泄漏的经典场景。
+
+  演示 3：引用链断裂
+
+  node2 = null → node2 指向的对象不可达
+  但 node3 仍被栈变量直接引用 → 仍然存活
+
+  关键知识点： 可达性分析是从 GC Roots 出发沿引用链走。断开中间一环，只影响那一环以下不可达的对象。node3 有自己的直接引用（栈变量），所以不受影响。
+
+  D2 学完了，核心收获
+
+  1. 三种 GC 算法 → 标记-清除/复制/整理，各有优劣
+  2. 四大回收器 → Serial/CMS/Parallel/G1，亲手跑过对比了 GC 日志
+  3. GC Roots → 5 种根，可达性分析判断对象存活
+
+  D2 代码要提交吗？还是直接进 D3（JVM 调优实战）？
+
+✻ Sautéed for 1m 53s

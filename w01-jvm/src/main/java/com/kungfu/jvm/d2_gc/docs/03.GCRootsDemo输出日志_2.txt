@@ -1,0 +1,56 @@
+========================================
+  GC Roots 与可达性分析演示
+========================================
+
+--- 演示 1：局部变量作为 GC Root ---
+
+  [作用域内] obj 引用 2MB 对象，obj 是 GC Root → 对象存活
+[Full GC (System.gc()) [Tenured: 0K->2663K(13696K), 0.0014935 secs] 3866K->2663K(19840K), [Metaspace: 3385K->3385K(1056768K)], 0.0015236 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [GC 后] 对象仍存活（obj 还在栈帧中）
+
+  [出作用域] obj 超出作用域
+[Full GC (System.gc()) [Tenured: 2663K->2664K(13696K), 0.0007832 secs] 2825K->2664K(19840K), [Metaspace: 3388K->3388K(1056768K)], 0.0007946 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [GC 后] 注意：槽位未被复用时，对象可能仍未被回收！
+[Full GC (System.gc()) [Tenured: 2664K->616K(13696K), 0.0007000 secs] 2826K->616K(19840K), [Metaspace: 3388K->3388K(1056768K)], 0.0007149 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [覆盖槽位后 GC] 现在 obj 的槽位被 placeholder 覆盖 → 对象可被回收
+  → 这就是为什么有时需要 obj = null 来帮助 GC
+
+--- 演示 2：静态变量作为 GC Root ---
+
+  staticRef 指向 2MB 对象 → GC Root 可达 → 不会被回收
+[Full GC (System.gc()) [Tenured: 616K->2660K(13696K), 0.0010417 secs] 2936K->2660K(19840K), [Metaspace: 3404K->3404K(1056768K)], 0.0010593 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  staticRef = null → 对象不可达 → 可被回收
+[Full GC (System.gc()) [Tenured: 2660K->612K(13696K), 0.0006523 secs] 2822K->612K(19840K), [Metaspace: 3404K->3404K(1056768K)], 0.0006669 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [GC 后] 对象已被回收
+
+--- 演示 3：引用链断裂 ---
+
+  引用链: 栈变量 node1, node2 → 各自的对象
+  所有对象通过栈变量（GC Root）可达 → 都存活
+
+  node2 = null → node2 原来指向的对象不可达
+  但 node3 仍被栈变量直接引用 → 仍然存活
+[Full GC (System.gc()) [Tenured: 612K->1638K(13696K), 0.0007862 secs] 1798K->1638K(19840K), [Metaspace: 3405K->3405K(1056768K)], 0.0007996 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [GC 后] node3 数据仍然可访问: 262144 个 int
+
+========================================
+  GC Roots 速记（面试必背）：
+  1. 虚拟机栈局部变量引用的对象
+  2. 方法区静态变量引用的对象
+  3. 方法区常量引用的对象
+  4. 本地方法栈 JNI 引用的对象
+  5. synchronized 持有的对象
+
+  判断对象存活的两种方式：
+  × 引用计数法 → 有循环引用问题，JVM 不用
+  ✓ 可达性分析 → 从 GC Roots 沿引用链遍历
+========================================
+Heap
+ def new generation   total 6144K, used 217K [0x00000000fec00000, 0x00000000ff2a0000, 0x00000000ff2a0000)
+  eden space 5504K,   3% used [0x00000000fec00000, 0x00000000fec36598, 0x00000000ff160000)
+  from space 640K,   0% used [0x00000000ff160000, 0x00000000ff160000, 0x00000000ff200000)
+  to   space 640K,   0% used [0x00000000ff200000, 0x00000000ff200000, 0x00000000ff2a0000)
+ tenured generation   total 13696K, used 1638K [0x00000000ff2a0000, 0x0000000100000000, 0x0000000100000000)
+   the space 13696K,  11% used [0x00000000ff2a0000, 0x00000000ff4398c0, 0x00000000ff439a00, 0x0000000100000000)
+ Metaspace       used 3427K, capacity 4564K, committed 4864K, reserved 1056768K
+  class space    used 372K, capacity 388K, committed 512K, reserved 1048576K

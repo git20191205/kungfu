@@ -1,0 +1,104 @@
+========================================
+  四种引用类型实战演示
+========================================
+
+=== 一、强引用（Strong Reference）===
+  场景：日常写的 Object obj = new Object() 就是强引用
+
+  创建 2MB 强引用对象
+[GC (System.gc()) [PSYoungGen: 3895K->488K(6144K)] 3895K->2760K(19968K), 0.0007509 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[Full GC (System.gc()) [PSYoungGen: 488K->0K(6144K)] [ParOldGen: 2272K->2666K(13824K)] 2760K->2666K(19968K), [Metaspace: 3408K->3408K(1056768K)], 0.0024647 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  GC 后对象是否存活: true
+[GC (System.gc()) [PSYoungGen: 165K->128K(6144K)] 2832K->2794K(19968K), 0.0002149 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[Full GC (System.gc()) [PSYoungGen: 128K->0K(6144K)] [ParOldGen: 2666K->612K(13824K)] 2794K->612K(19968K), [Metaspace: 3409K->3409K(1056768K)], 0.0023727 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  置 null + GC 后才被回收
+
+  → 强引用的风险：忘记置 null → 内存泄漏
+    经典场景：static List 不断 add 却不 remove
+
+=== 三、弱引用（Weak Reference）===
+  场景：WeakHashMap、ThreadLocal 的 key
+
+  创建 1MB 弱引用对象
+  GC 前是否存活: true
+[GC (System.gc()) [PSYoungGen: 1302K->160K(6144K)] 1914K->772K(19968K), 0.0002598 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[Full GC (System.gc()) [PSYoungGen: 160K->0K(6144K)] [ParOldGen: 612K->613K(13824K)] 772K->613K(19968K), [Metaspace: 3418K->3418K(1056768K)], 0.0023959 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  GC 后是否存活: false ← 一定是 false！
+
+  --- WeakHashMap 实战场景 ---
+  WeakHashMap 存入数据，size: 1
+[GC (System.gc()) [PSYoungGen: 165K->256K(6144K)] 779K->869K(19968K), 0.0004537 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[Full GC (System.gc()) [PSYoungGen: 256K->0K(6144K)] [ParOldGen: 613K->638K(13824K)] 869K->638K(19968K), [Metaspace: 3422K->3422K(1056768K)], 0.0012787 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  key 还在 + GC 后，size: 1
+[GC (System.gc()) [PSYoungGen: 165K->64K(6144K)] 804K->702K(19968K), 0.0002588 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[Full GC (System.gc()) [PSYoungGen: 64K->0K(6144K)] [ParOldGen: 638K->638K(13824K)] 702K->638K(19968K), [Metaspace: 3423K->3423K(1056768K)], 0.0011666 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  key = null + GC 后，size: 0 ← 自动清理了！
+
+  → 弱引用 vs 软引用：软引用「内存不够才回收」，弱引用「GC 就回收」
+  → WeakHashMap：key 没有外部强引用时，条目自动清理，防止内存泄漏
+  → ThreadLocal 的 key 也是弱引用，但 value 不是 → 所以要手动 remove()！
+
+=== 四、虚引用（Phantom Reference）===
+  场景：追踪对象被 GC 回收的时机，DirectByteBuffer 堆外内存回收
+
+  phantomRef.get(): null ← 永远是 null
+[GC (System.gc()) [PSYoungGen: 1130K->96K(6144K)] 1768K->734K(19968K), 0.0003245 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[Full GC (System.gc()) [PSYoungGen: 96K->0K(6144K)] [ParOldGen: 638K->639K(13824K)] 734K->639K(19968K), [Metaspace: 3423K->3423K(1056768K)], 0.0013342 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  GC 后 ReferenceQueue 中是否收到通知: true
+  收到的引用是不是 phantomRef: true
+
+  → 虚引用唯一的用途：对象被回收时收到通知
+  → 经典应用：DirectByteBuffer 的 Cleaner 机制
+    NIO 分配堆外内存 → 用虚引用追踪 → 对象被 GC 时触发堆外内存释放
+  → 日常开发很少直接用，但面试会考原理
+
+=== 二、软引用（Soft Reference）===
+  场景：图片缓存、计算结果缓存 — 内存够就留着，不够就扔
+
+  创建 2MB 软引用对象（模拟缓存图片）
+  缓存是否可用: true
+[GC (System.gc()) [PSYoungGen: 2154K->96K(6144K)] 2793K->2783K(19968K), 0.0006837 secs] [Times: user=0.00 sys=0.03, real=0.00 secs]
+[Full GC (System.gc()) [PSYoungGen: 96K->0K(6144K)] [ParOldGen: 2687K->2688K(13824K)] 2783K->2688K(19968K), [Metaspace: 3425K->3425K(1056768K)], 0.0031140 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  内存充足 + GC 后，缓存是否还在: true
+
+  开始疯狂分配内存，制造内存压力...
+[GC (Allocation Failure) [PSYoungGen: 5226K->128K(6144K)] 7914K->7936K(19968K), 0.0007518 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[GC (Allocation Failure) [PSYoungGen: 5355K->96K(6144K)] 13164K->13024K(19968K), 0.0008436 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[Full GC (Ergonomics) [PSYoungGen: 96K->0K(6144K)] [ParOldGen: 12928K->12929K(13824K)] 13024K->12929K(19968K), [Metaspace: 3426K->3426K(1056768K)], 0.0018258 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[Full GC (Ergonomics) [PSYoungGen: 5220K->5120K(6144K)] [ParOldGen: 12929K->12929K(13824K)] 18150K->18049K(19968K), [Metaspace: 3426K->3426K(1056768K)], 0.0010919 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[Full GC (Allocation Failure) [PSYoungGen: 5120K->3072K(6144K)] [ParOldGen: 12929K->12906K(13824K)] 18049K->15979K(19968K), [Metaspace: 3426K->3426K(1056768K)], 0.0029304 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[Full GC (Ergonomics) [PSYoungGen: 5224K->5120K(6144K)] [ParOldGen: 12906K->12906K(13824K)] 18131K->18027K(19968K), [Metaspace: 3426K->3426K(1056768K)], 0.0011853 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+[Full GC (Allocation Failure) [PSYoungGen: 5120K->5120K(6144K)] [ParOldGen: 12906K->12906K(13824K)] 18027K->18027K(19968K), [Metaspace: 3426K->3426K(1056768K)], 0.0009873 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  [触发 OOM 边缘]
+  内存紧张后，缓存是否还在: false
+
+  → 软引用 = 「内存够就缓存，不够就丢弃」
+  → 比手动管理缓存过期更优雅，JVM 自动帮你决定何时清理
+  → 实战：Android 图片加载框架、本地计算缓存
+
+========================================
+  四种引用对比速记：
+  ┌──────────┬────────────┬──────────────────────┐
+  │ 引用类型  │ GC 回收时机  │ 典型场景              │
+  ├──────────┼────────────┼──────────────────────┤
+  │ 强引用    │ 不回收       │ Object o = new O()   │
+  │ 软引用    │ 内存不够时   │ 图片缓存、本地缓存     │
+  │ 弱引用    │ GC 就回收    │ WeakHashMap/ThreadLocal│
+  │ 虚引用    │ GC 就回收    │ 堆外内存回收通知       │
+  └──────────┴────────────┴──────────────────────┘
+
+  面试追问：ThreadLocal 为什么会内存泄漏？
+  → ThreadLocalMap 的 key 是弱引用（GC 会回收）
+  → 但 value 是强引用（GC 不会回收）
+  → key 被回收后 value 变成孤儿 → 内存泄漏
+  → 解决方案：用完必须调用 threadLocal.remove()
+========================================
+Heap
+ PSYoungGen      total 6144K, used 5316K [0x00000000ff980000, 0x0000000100000000, 0x0000000100000000)
+  eden space 5632K, 94% used [0x00000000ff980000,0x00000000ffeb1180,0x00000000fff00000)
+  from space 512K, 0% used [0x00000000fff00000,0x00000000fff00000,0x00000000fff80000)
+  to   space 512K, 0% used [0x00000000fff80000,0x00000000fff80000,0x0000000100000000)
+ ParOldGen       total 13824K, used 12906K [0x00000000fec00000, 0x00000000ff980000, 0x00000000ff980000)
+  object space 13824K, 93% used [0x00000000fec00000,0x00000000ff89aba8,0x00000000ff980000)
+ Metaspace       used 3434K, capacity 4564K, committed 4864K, reserved 1056768K
+  class space    used 372K, capacity 388K, committed 512K, reserved 1048576K
