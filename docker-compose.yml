@@ -1,0 +1,57 @@
+version: '3.8'
+
+# Java架构师学习工程 - 中间件环境
+# 使用方式: docker-compose up -d
+
+services:
+
+  # ============ 第一个月基础环境 ============
+
+  mysql:
+    image: mysql:8.0
+    container_name: kungfu-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: kungfu
+      MYSQL_CHARSET: utf8mb4
+    volumes:
+      - mysql-data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+             --character-set-server=utf8mb4
+             --collation-server=utf8mb4_unicode_ci
+
+  redis:
+    image: redis:7-alpine
+    container_name: kungfu-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+
+  # ============ 第二个月取消注释 ============
+
+#  nacos:
+#    image: nacos/nacos-server:v2.3.0
+#    container_name: kungfu-nacos
+#    ports:
+#      - "8848:8848"
+#      - "9848:9848"
+#    environment:
+#      MODE: standalone
+
+#  rabbitmq:
+#    image: rabbitmq:3.12-management
+#    container_name: kungfu-rabbitmq
+#    ports:
+#      - "5672:5672"
+#      - "15672:15672"
+#    environment:
+#      RABBITMQ_DEFAULT_USER: guest
+#      RABBITMQ_DEFAULT_PASS: guest
+
+volumes:
+  mysql-data:
+  redis-data:
