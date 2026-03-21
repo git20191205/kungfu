@@ -1,0 +1,219 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -agentlib:jdwp=transport=dt_socket,address=127.0.0.1:49746,suspend=y,server=n "-javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\plugins\java\lib\rt\debugger-agent.jar=file:///C:/Users/ADMINI~1/AppData/Local/Temp/capture6403347399718990753.props" -Dkotlinx.coroutines.debug.enable.creation.stack.trace=false -Ddebugger.agent.enable.coroutines=true -Dkotlinx.coroutines.debug.enable.flows.stack.trace=true -Dkotlinx.coroutines.debug.enable.mutable.state.flows.stack.trace=true -Ddebugger.async.stack.trace.for.all.threads=true -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu;D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar com.kungfu.jvm.d3_tuning.JvmMonitorCommandDemo
+Connected to the target VM, address: '127.0.0.1:49746', transport: 'socket'
+========================================
+  JVM 监控命令实战
+========================================
+
+=== 一、进程信息（对应 jps）===
+
+  进程名:    33040@DESKTOP-1VJBC9S
+  PID:       33040
+  JVM 名称:  Java HotSpot(TM) 64-Bit Server VM
+  JVM 版本:  25.441-b07
+  启动时间:  94 ms
+
+  JVM 启动参数:
+    -agentlib:jdwp=transport=dt_socket,address=127.0.0.1:49746,suspend=y,server=n
+    -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\plugins\java\lib\rt\debugger-agent.jar=file:///C:/Users/ADMINI~1/AppData/Local/Temp/capture6403347399718990753.props
+    -Dkotlinx.coroutines.debug.enable.creation.stack.trace=false
+    -Ddebugger.agent.enable.coroutines=true
+    -Dkotlinx.coroutines.debug.enable.flows.stack.trace=true
+    -Dkotlinx.coroutines.debug.enable.mutable.state.flows.stack.trace=true
+    -Ddebugger.async.stack.trace.for.all.threads=true
+    -Dfile.encoding=UTF-8
+
+  命令行等价:
+  ┌──────────────────────────────────────────────┐
+  │ jps -l         → 列出所有 Java 进程          │
+  │ jps -v         → 显示 JVM 启动参数           │
+  │ jinfo <PID>    → 查看进程的系统属性和 VM 参数 │
+  │ jinfo -flags <PID> → 只看 VM 参数           │
+  └──────────────────────────────────────────────┘
+
+=== 二、内存信息（对应 jstat / jmap）===
+
+  堆内存（Heap）:
+    初始(init):     1020.0 MB
+    已用(used):     20.4 MB
+    已提交(committed): 977.5 MB
+    最大(max):      14.2 GB
+    使用率:         0.1%
+
+  非堆内存（Non-Heap = 元空间 + 代码缓存等）:
+    已用(used):     6.9 MB
+    已提交(committed): 8.1 MB
+
+  各参数含义:
+  ┌─────────────┬───────────────────────────────────┐
+  │ init        │ JVM 启动时从 OS 申请的初始内存     │
+  │ used        │ 当前实际使用的内存                 │
+  │ committed   │ 已向 OS 申请到的内存（已保证可用）  │
+  │ max         │ 最大可用内存（-Xmx 设置的值）      │
+  └─────────────┴───────────────────────────────────┘
+  关系: init ≤ used ≤ committed ≤ max
+
+  命令行等价:
+  ┌──────────────────────────────────────────────────────────┐
+  │ jstat -gc <PID> 1000 5     → 每秒打印一次 GC 统计，共 5 次│
+  │ jstat -gcutil <PID> 1000   → 百分比形式，更直观            │
+  │ jmap -heap <PID>           → 堆内存概况                   │
+  │ jmap -histo <PID>          → 对象统计（哪种对象最多）       │
+  │ jmap -dump:format=b,file=dump.hprof <PID> → 导出堆转储    │
+  └──────────────────────────────────────────────────────────┘
+
+=== 三、GC 信息（对应 jstat -gc）===
+
+  当前使用的垃圾收集器:
+    收集器名称: PS Scavenge
+    收集次数:   0
+    收集总耗时: 0 ms
+    管理的内存池: PS Eden Space PS Survivor Space
+
+    收集器名称: PS MarkSweep
+    收集次数:   0
+    收集总耗时: 0 ms
+    管理的内存池: PS Eden Space PS Survivor Space PS Old Gen
+
+  jstat -gc 输出列名对照表:
+  ┌──────┬────────────────────────────────┐
+  │ 列名  │ 含义                           │
+  ├──────┼────────────────────────────────┤
+  │ S0C  │ Survivor 0 容量（KB）           │
+  │ S1C  │ Survivor 1 容量（KB）           │
+  │ S0U  │ Survivor 0 已用（KB）           │
+  │ S1U  │ Survivor 1 已用（KB）           │
+  │ EC   │ Eden 容量（KB）                 │
+  │ EU   │ Eden 已用（KB）                 │
+  │ OC   │ Old 容量（KB）                  │
+  │ OU   │ Old 已用（KB）                  │
+  │ MC   │ Metaspace 容量（KB）            │
+  │ MU   │ Metaspace 已用（KB）            │
+  │ YGC  │ Young GC 次数                  │
+  │ YGCT │ Young GC 总耗时（秒）           │
+  │ FGC  │ Full GC 次数                   │
+  │ FGCT │ Full GC 总耗时（秒）            │
+  │ GCT  │ GC 总耗时（秒）                 │
+  └──────┴────────────────────────────────┘
+
+=== 四、线程信息（对应 jstack）===
+
+  当前线程数:       6
+  守护线程数:       5
+  历史峰值线程数:    6
+  累计创建线程数:    6
+
+  ✓ 未检测到死锁
+
+  当前所有线程:
+    [9] IntelliJ Suspend Helper - TIMED_WAITING
+    [8] JDWP Command Reader - RUNNABLE
+    [7] JDWP Event Helper Thread - RUNNABLE
+    [6] JDWP Transport Listener: dt_socket - RUNNABLE
+    [5] Attach Listener - RUNNABLE
+    [4] Signal Dispatcher - RUNNABLE
+    [3] Finalizer - WAITING
+    [2] Reference Handler - WAITING
+    [1] main - RUNNABLE
+
+  命令行等价:
+  ┌──────────────────────────────────────────────────────┐
+  │ jstack <PID>            → 打印所有线程堆栈           │
+  │ jstack -l <PID>         → 包含锁信息                │
+  │ jstack -F <PID>         → 强制 dump（进程无响应时用） │
+  └──────────────────────────────────────────────────────┘
+
+  ★ CPU 飙高排查三板斧（面试必背）：
+    1. top → 找到 CPU 高的 Java 进程 PID
+    2. top -Hp <PID> → 找到 CPU 高的线程 TID
+    3. printf '%x' <TID> → 转成 16 进制
+    4. jstack <PID> | grep <16进制TID> -A 30 → 看这个线程在干什么
+
+=== 五、各内存池详情 ===
+
+  Code Cache                      类型: Non-heap memory  已用: 3.0 MB      最大: 240.0 MB
+  Metaspace                       类型: Non-heap memory  已用: 4.5 MB      最大: 无限制
+  Compressed Class Space          类型: Non-heap memory  已用: 494.7 KB    最大: 1.0 GB
+  PS Eden Space                   类型: Heap memory  已用: 30.6 MB     最大: 5.2 GB
+  PS Survivor Space               类型: Heap memory  已用: 0 B         最大: 42.5 MB
+  PS Old Gen                      类型: Heap memory  已用: 0 B         最大: 10.6 GB
+
+========================================
+  JVM 排查命令速查表
+========================================
+
+  一、日常监控:
+  ┌────────────────────────────────────┬─────────────────────────┐
+  │ 命令                               │ 场景                     │
+  ├────────────────────────────────────┼─────────────────────────┤
+  │ jps -l                             │ 找 Java 进程             │
+  │ jstat -gcutil <PID> 1000           │ 持续监控 GC 状态          │
+  │ jinfo -flags <PID>                 │ 看 JVM 参数              │
+  │ jmap -heap <PID>                   │ 堆概况                   │
+  └────────────────────────────────────┴─────────────────────────┘
+
+  二、故障排查:
+  ┌────────────────────────────────────┬─────────────────────────┐
+  │ 命令                               │ 场景                     │
+  ├────────────────────────────────────┼─────────────────────────┤
+  │ jstack <PID>                       │ CPU 飙高 / 死锁排查      │
+  │ jmap -histo <PID> | head -20       │ 快速看哪种对象最多        │
+  │ jmap -dump:format=b,file=dump.hprof│ 导出堆转储（OOM 排查）   │
+  │ jhat dump.hprof / MAT              │ 分析堆转储               │
+  └────────────────────────────────────┴─────────────────────────┘
+
+  三、线上排查流程图:
+  ┌──────────┐     ┌──────────┐     ┌──────────┐
+  │ CPU 飙高  │────→│ top -Hp  │────→│ jstack   │
+  └──────────┘     └──────────┘     └──────────┘
+                                    找到热点线程在做什么
+
+  ┌──────────┐     ┌──────────┐     ┌──────────┐
+  │ OOM      │────→│ jmap dump│────→│ MAT 分析  │
+  └──────────┘     └──────────┘     └──────────┘
+                                    找到大对象是谁持有
+
+  ┌──────────┐     ┌──────────┐     ┌──────────┐
+  │ GC 频繁   │────→│ jstat -gc│────→│ 调参数    │
+  └──────────┘     └──────────┘     └──────────┘
+                                    调堆大小/换收集器
+
+=== 制造内存压力，等待 60 秒 ===
+  现在可以打开另一个终端，用以下命令观察：
+  1. jps -l
+  2. jstat -gc <PID> 1000 5
+  3. jstack <PID>
+  4. jmap -histo <PID> | head -20
+
+  已分配 1 MB，可以用 jstat 观察内存变化
+  已分配 2 MB，可以用 jstat 观察内存变化
+  已分配 3 MB，可以用 jstat 观察内存变化
+  已分配 4 MB，可以用 jstat 观察内存变化
+  已分配 5 MB，可以用 jstat 观察内存变化
+  已分配 6 MB，可以用 jstat 观察内存变化
+  已分配 7 MB，可以用 jstat 观察内存变化
+  已分配 8 MB，可以用 jstat 观察内存变化
+  已分配 9 MB，可以用 jstat 观察内存变化
+  已分配 10 MB，可以用 jstat 观察内存变化
+  已分配 11 MB，可以用 jstat 观察内存变化
+  已分配 12 MB，可以用 jstat 观察内存变化
+  已分配 13 MB，可以用 jstat 观察内存变化
+  已分配 14 MB，可以用 jstat 观察内存变化
+  已分配 15 MB，可以用 jstat 观察内存变化
+  已分配 16 MB，可以用 jstat 观察内存变化
+  已分配 17 MB，可以用 jstat 观察内存变化
+  已分配 18 MB，可以用 jstat 观察内存变化
+  已分配 19 MB，可以用 jstat 观察内存变化
+  已分配 20 MB，可以用 jstat 观察内存变化
+  已分配 21 MB，可以用 jstat 观察内存变化
+  已分配 22 MB，可以用 jstat 观察内存变化
+  已分配 23 MB，可以用 jstat 观察内存变化
+  已分配 24 MB，可以用 jstat 观察内存变化
+  已分配 25 MB，可以用 jstat 观察内存变化
+  已分配 26 MB，可以用 jstat 观察内存变化
+  已分配 27 MB，可以用 jstat 观察内存变化
+  已分配 28 MB，可以用 jstat 观察内存变化
+  已分配 29 MB，可以用 jstat 观察内存变化
+  已分配 30 MB，可以用 jstat 观察内存变化
+Disconnected from the target VM, address: '127.0.0.1:49746', transport: 'socket'
+
+Process finished with exit code 0

@@ -1,0 +1,208 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=61307 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo
+========================================
+  自动化 JVM 诊断
+========================================
+
+  当前进程 PID: 46612
+  诊断结果将保存到 w01-jvm/src/main/java/com/kungfu/jvm/d3_tuning/docs 目录
+
+--- 场景一：CPU 飙高诊断 ---
+
+  [启动] 死循环线程 cpu-hog-thread
+  [执行] jps -l
+  [保存] → 05.AutoDiagnoseDemo_cpu_jps.txt
+  [执行] jstack 46612
+  [保存] → 05.AutoDiagnoseDemo_cpu_jstack.txt
+
+  [分析] RUNNABLE 线程：
+    → "cpu-hog-thread" #20 daemon prio=5 os_prio=0 tid=0x000002bf769eb800 nid=0xb4c4 runnable [0x000000ceae2fe000]
+    → "Service Thread" #19 daemon prio=9 os_prio=0 tid=0x000002bf74572800 nid=0x1b44 runnable [0x0000000000000000]
+    → "C1 CompilerThread11" #18 daemon prio=9 os_prio=2 tid=0x000002bf74469000 nid=0x2424 waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread10" #17 daemon prio=9 os_prio=2 tid=0x000002bf7446c000 nid=0x6428 waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread9" #16 daemon prio=9 os_prio=2 tid=0x000002bf74469800 nid=0x5084 waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread8" #15 daemon prio=9 os_prio=2 tid=0x000002bf74468000 nid=0x2a80 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread7" #14 daemon prio=9 os_prio=2 tid=0x000002bf7446b000 nid=0x86f8 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread6" #13 daemon prio=9 os_prio=2 tid=0x000002bf74467800 nid=0x4598 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread5" #12 daemon prio=9 os_prio=2 tid=0x000002bf7445e800 nid=0x7220 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread4" #11 daemon prio=9 os_prio=2 tid=0x000002bf7445c000 nid=0xb0b4 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread3" #10 daemon prio=9 os_prio=2 tid=0x000002bf74452800 nid=0x96c0 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread2" #9 daemon prio=9 os_prio=2 tid=0x000002bf74457000 nid=0xac88 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread1" #8 daemon prio=9 os_prio=2 tid=0x000002bf74452000 nid=0xb8b8 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread0" #7 daemon prio=9 os_prio=2 tid=0x000002bf74450000 nid=0x97a0 waiting on condition [0x0000000000000000]
+    → "Monitor Ctrl-Break" #6 daemon prio=5 os_prio=0 tid=0x000002bf7443e800 nid=0x3ec runnable [0x000000cead3fe000]
+    → "Attach Listener" #5 daemon prio=5 os_prio=2 tid=0x000002bf743c4000 nid=0x9c44 waiting on condition [0x0000000000000000]
+    → "Signal Dispatcher" #4 daemon prio=9 os_prio=2 tid=0x000002bf7436d800 nid=0x52cc runnable [0x0000000000000000]
+    → "main" #1 prio=5 os_prio=0 tid=0x000002bf5aa4f800 nid=0x9bac runnable [0x000000ceab9ff000]
+
+  [清理] 死循环线程已停止
+
+  ★ 诊断结论：
+    如果 cpu-hog-thread 处于 RUNNABLE 状态，说明它在持续消耗 CPU
+    jstack 堆栈可定位到具体死循环代码行
+
+--- 场景二：死锁诊断 ---
+
+  [启动] 两个交叉锁线程
+  [执行] jstack 46612
+  [保存] → 05.AutoDiagnoseDemo_deadlock_jstack.txt
+
+  ★ 诊断结论：
+    检测到死锁！jstack 输出中包含 "Found one Java-level deadlock"
+    修复方案：统一锁顺序 / 用 tryLock + 超时
+  [清理] 死锁线程已强制终止
+
+--- 场景三：线程池满诊断 ---
+
+  [启动] 线程池(5线程) + 5个慢任务
+  [执行] jstack 46612
+  [保存] → 05.AutoDiagnoseDemo_threadpool_jstack.txt
+
+  ★ 线程状态分布：
+    WAITING: 2 个
+    RUNNABLE: 17 个
+    BLOCKED: 2 个
+    TIMED_WAITING: 5 个
+
+  ★ 诊断结论：
+    大量线程处于 WAITING/TIMED_WAITING 状态
+    可能是线程池被慢任务占满，或下游服务超时
+    修复方案：加超时 / 加熔断 / 线程池隔离
+
+========================================
+  所有诊断完成！
+  请查看 w01-jvm/src/main/java/com/kungfu/jvm/d3_tuning/docs 目录下的诊断文件
+========================================
+
+Process finished with exit code 0
+
+
+❯ 详细解释一下各个诊断文件的内容
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● 文件没有变化，说明还没重新运行。我先基于当前已有的文件来分析，这些是修复前生成的。
+
+  Read 1 file (ctrl+o to expand)
+
+● 看到了，你已经重新运行了（第二次运行，PID: 43868）。清理逻辑生效了，可以看到 [清理] 消息。但场景三仍然有 BLOCKED: 2，需要看下新生成的诊断文件确认是否干净了。
+
+  Read 4 files (ctrl+o to expand)
+
+● 好的，这是第二次运行（PID 43868）的诊断文件。逐个分析：
+
+  ---
+  1. 05.AutoDiagnoseDemo_cpu_jps.txt — 进程列表
+
+  ┌───────────────────┬────────────────────────────────────┬────────────────────────────────────┐
+  │        PID        │                进程                │                说明                │
+  ├───────────────────┼────────────────────────────────────┼────────────────────────────────────┤
+  │ 43868             │ AutoDiagnoseDemo                   │ 我们自己                           │
+  ├───────────────────┼────────────────────────────────────┼────────────────────────────────────┤
+  │ 8656              │ sun.tools.jps.Jps                  │ jps 命令本身（每次都会出现，正常） │
+  ├───────────────────┼────────────────────────────────────┼────────────────────────────────────┤
+  │ 14492             │ com.intellij.idea.Main             │ IDEA 主进程                        │
+  ├───────────────────┼────────────────────────────────────┼────────────────────────────────────┤
+  │ 11000/32984/39068 │ org.jetbrains.jps.cmdline.Launcher │ IDEA 编译进程                      │
+  └───────────────────┴────────────────────────────────────┴────────────────────────────────────┘
+
+  场景干净：只有 AutoDiagnoseDemo 和 JPS 自身，没有残留。
+
+  ---
+  2. 05.AutoDiagnoseDemo_cpu_jstack.txt — CPU 飙高场景
+
+  场景干净：没有残留线程。
+
+  关键业务线程：
+  - cpu-hog-thread #20 — RUNNABLE，堆栈：AutoDiagnoseDemo.java:80（while(running.get()) 死循环）。这就是 CPU 100% 的元凶。
+
+  JVM 内部线程（正常存在，不是问题）：
+  - C2 CompilerThread0~7 — JIT 即时编译线程，状态 RUNNABLE 但实际在等待编译任务
+  - C1 CompilerThread8~11 — C1 编译器线程，同上
+  - Finalizer / Reference Handler — WAITING，等待处理引用队列，正常
+  - Monitor Ctrl-Break — IDEA 的监控线程，卡在 SocketInputStream.read（等待 IDEA 的调试指令）
+  - main — RUNNABLE，在 runCommand 读取 jstack 输出
+
+  ---
+  3. 05.AutoDiagnoseDemo_deadlock_jstack.txt — 死锁场景
+
+  场景半干净：cpu-hog-thread 没有了（清理成功），但只有死锁线程。
+
+  核心死锁信息：
+
+  "deadlock-thread-1" — BLOCKED
+    持有: 0x66c16bdc8 (LOCK_A)
+    等待: 0x66c16bdd8 (LOCK_B)
+
+  "deadlock-thread-2" — BLOCKED
+    持有: 0x66c16bdd8 (LOCK_B)
+    等待: 0x66c16bdc8 (LOCK_A)
+
+  末尾 JVM 自动输出：
+  Found one Java-level deadlock:
+  "deadlock-thread-2": waiting to lock monitor ... which is held by "deadlock-thread-1"
+  "deadlock-thread-1": waiting to lock monitor ... which is held by "deadlock-thread-2"
+  Found 1 deadlock.
+
+  JVM 会自动检测 synchronized 死锁，并在 jstack 末尾打印死锁链。
+
+  ---
+  4. 05.AutoDiagnoseDemo_threadpool_jstack.txt — 线程池满场景
+
+  场景有残留：deadlock-thread-1/2 还在（BLOCKED），Thread.stop() 没生效。
+
+  业务线程：
+  - biz-pool-23 ~ biz-pool-27 — 5 个线程全是 TIMED_WAITING (sleeping)
+  - 堆栈一致：Thread.sleep → lambda$diagnoseThreadPoolFull → FutureTask.run → ThreadPoolExecutor.runWorker
+  - 这就是线程池被慢任务占满的典型表现
+
+  残留问题：
+  - deadlock-thread-1/2 仍在，导致 BLOCKED: 2
+  - 末尾又报了 Found 1 deadlock — 这是场景二的死锁线程残留
+
+  ---
+  总结
+
+  ┌───────────────────┬────────────┬──────────────────────────────┐
+  │       文件        │ 场景干净？ │             问题             │
+  ├───────────────────┼────────────┼──────────────────────────────┤
+  │ cpu_jstack        │ 干净       │ 无残留                       │
+  ├───────────────────┼────────────┼──────────────────────────────┤
+  │ deadlock_jstack   │ 干净       │ cpu-hog 已清理               │
+  ├───────────────────┼────────────┼──────────────────────────────┤
+  │ threadpool_jstack │ 有残留     │ deadlock-thread 没被 stop 掉 │
+  └───────────────────┴────────────┴──────────────────────────────┘
+
+  Thread.stop() 对 BLOCKED 在 synchronized 上的线程不一定生效（JDK 8 的行为）。需要把 stop() 之后的等待时间加长，或者在 stop() 后再加一次 sleep 让 JVM 有时间处理。要修吗？
+
+✻ Cooked for 51s
+
+❯ 需要
+
+  Read 1 file (ctrl+o to expand)
+
+● 问题是 stop() 一个死锁线程时释放了它持有的锁，另一个线程可能瞬间获得锁后又被 stop，时序不可控。需要逐个 stop + join，确保一个死了再处理下一个，并加重试。
+
+● Update(w01-jvm\src\main\java\com\kungfu\jvm\d3_tuning\AutoDiagnoseDemo.java)
+  ⎿  Added 6 lines, removed 2 lines
+      190          }
+      191
+      192          // 6. 清理：synchronized 死锁无法被 interrupt，只能用 stop() 强制终止
+      193 +        //    逐个终止：stop t1 释放锁后 t2 可能瞬间获得锁，需要等 t1 死透再 stop t2
+      194          t1.stop();
+      195 +        t1.join(2000);
+      196          t2.stop();
+      197 -        t1.join(1000);
+      198 -        t2.join(1000);
+      197 +        t2.join(2000);
+      198 +        // 兜底：如果还没死，再来一轮
+      199 +        if (t1.isAlive()) { t1.stop(); t1.join(1000); }
+      200 +        if (t2.isAlive()) { t2.stop(); t2.join(1000); }
+      201          System.out.println("  [清理] 死锁线程已强制终止\n");
+      202      }
+      203
+  ⎿  PostToolUse:Edit hook error
+
+● Bash(cd D:/workspace/kungfu && mvn compile -pl w01-jvm -q 2>&1 | tail -5)
+  ⎿  (No output)
+
+● 编译通过。改动：逐个 stop + join(2000)，先终止 t1 等它死透（释放锁），再终止 t2，最后兜底重试。重新运行验证场景三的 jstack 是否还有残留的 deadlock-thread。

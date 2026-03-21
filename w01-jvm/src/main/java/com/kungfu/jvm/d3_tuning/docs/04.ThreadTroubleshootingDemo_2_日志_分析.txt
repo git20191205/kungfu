@@ -1,0 +1,60 @@
+
+❯ ThreadTroubleshootingDemo deadlock 日志：d3_tuning/docs/04.ThreadTroubleshootingDemo_2_日志.txt
+
+  Read 1 file (ctrl+o to expand)
+
+● deadlock 日志分析
+
+  1. 死锁现场
+
+  线程1: 先锁A → 再锁B
+  线程2: 先锁B → 再锁A
+
+  经典的交叉锁顺序死锁。两个线程都进入 BLOCKED 状态，永远等下去。
+
+  2. MXBean 自动检测
+
+  程序用 ThreadMXBean.findDeadlockedThreads() 检测到死锁，输出了完整的锁链：
+
+  deadlock-thread-2 (BLOCKED)
+    等待锁: java.lang.Object@1ff8b8f
+    锁持有者: deadlock-thread-1
+
+  deadlock-thread-1 (BLOCKED)
+    等待锁: java.lang.Object@22a71081
+    锁持有者: deadlock-thread-2
+
+  形成环路：thread-1 持有 A，等 B ↔ thread-2 持有 B，等 A。
+
+  3. jstack 排查要点
+
+  - jstack <PID> 会自动在末尾输出死锁信息（Found one Java-level deadlock）
+  - 不需要手动分析线程状态，jstack 直接告诉你哪两个线程互锁
+  - 这是死锁排查比 CPU 飙高排查更简单的原因 — jstack 一把梭
+
+  4. 线程状态
+
+  ┌──────────────────┬──────────┬──────────┐
+  │       场景       │ 线程状态 │ CPU 消耗 │
+  ├──────────────────┼──────────┼──────────┤
+  │ 死循环（场景一） │ RUNNABLE │ 100%     │
+  ├──────────────────┼──────────┼──────────┤
+  │ 死锁（场景二）   │ BLOCKED  │ 0%       │
+  └──────────────────┴──────────┴──────────┘
+
+  死锁线程不消耗 CPU（在等锁），但线程完全卡死不干活。生产中表现为：接口超时、请求堆积，但 CPU 不高。
+
+  5. 修复方案
+
+  日志中列了 4 种，核心是统一锁顺序：
+
+  // 错误：不同线程不同顺序
+  Thread-1: synchronized(A) { synchronized(B) {} }
+  Thread-2: synchronized(B) { synchronized(A) {} }
+
+  // 正确：所有线程统一顺序
+  Thread-1: synchronized(A) { synchronized(B) {} }
+  Thread-2: synchronized(A) { synchronized(B) {} }  // 也先A后B
+
+  ---
+  继续跑最后一个场景 threadPoolFull。注释掉 deadlock()，取消注释 threadPoolFull()，直接运行。

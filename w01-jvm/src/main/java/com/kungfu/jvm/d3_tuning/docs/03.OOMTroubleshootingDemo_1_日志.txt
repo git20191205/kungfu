@@ -1,0 +1,144 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -Xms30m -Xmx30m -XX:+HeapDumpOnOutOfMemoryError -XX:+PrintGCDetails -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=63796 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.jvm.d3_tuning.OOMTroubleshootingDemo
+========================================
+  OOM 真实案例排查实战
+========================================
+
+  参数: -Xms30m -Xmx30m -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=./oom_dump.hprof -XX:+PrintGCDetails
+
+  每次只取消注释一个场景来运行
+
+--- 场景一：缓存无限增长 ---
+
+  模拟：本地 HashMap 缓存，只写不删
+  典型原因：缓存没有 maxSize / TTL / LRU 淘汰
+
+  缓存 1000 个用户，堆使用 3.3 MB / 29.0 MB
+  缓存 2000 个用户，堆使用 5.3 MB / 29.0 MB
+  缓存 3000 个用户，堆使用 6.4 MB / 29.0 MB
+  缓存 4000 个用户，堆使用 7.7 MB / 29.0 MB
+[GC (Allocation Failure) [PSYoungGen: 8192K->992K(9216K)] 8192K->6079K(29696K), 0.0014923 secs] [Times: user=0.00 sys=0.00, real=0.00 secs]
+  缓存 5000 个用户，堆使用 6.7 MB / 29.0 MB
+  缓存 6000 个用户，堆使用 7.9 MB / 29.0 MB
+  缓存 7000 个用户，堆使用 9.2 MB / 29.0 MB
+  缓存 8000 个用户，堆使用 10.2 MB / 29.0 MB
+  缓存 9000 个用户，堆使用 11.5 MB / 29.0 MB
+  缓存 10000 个用户，堆使用 12.6 MB / 29.0 MB
+  缓存 11000 个用户，堆使用 13.8 MB / 29.0 MB
+[GC (Allocation Failure) [PSYoungGen: 9184K->1016K(9216K)] 14271K->13863K(29696K), 0.0018541 secs] [Times: user=0.11 sys=0.08, real=0.00 secs]
+[Full GC (Ergonomics) [PSYoungGen: 1016K->0K(9216K)] [ParOldGen: 12847K->13363K(20480K)] 13863K->13363K(29696K), [Metaspace: 4100K->4100K(1056768K)], 0.0122403 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+  缓存 12000 个用户，堆使用 14.0 MB / 29.0 MB
+  缓存 13000 个用户，堆使用 15.4 MB / 29.0 MB
+  缓存 14000 个用户，堆使用 16.5 MB / 29.0 MB
+  缓存 15000 个用户，堆使用 17.7 MB / 29.0 MB
+  缓存 16000 个用户，堆使用 18.8 MB / 29.0 MB
+  缓存 17000 个用户，堆使用 19.9 MB / 29.0 MB
+  缓存 18000 个用户，堆使用 21.0 MB / 29.0 MB
+[Full GC (Ergonomics) [PSYoungGen: 8192K->476K(9216K)] [ParOldGen: 13363K->20454K(20480K)] 21555K->20930K(29696K), [Metaspace: 4103K->4103K(1056768K)], 0.0059781 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+  缓存 19000 个用户，堆使用 21.9 MB / 29.0 MB
+  缓存 20000 个用户，堆使用 23.0 MB / 29.0 MB
+  缓存 21000 个用户，堆使用 24.2 MB / 29.0 MB
+  缓存 22000 个用户，堆使用 25.3 MB / 29.0 MB
+  缓存 23000 个用户，堆使用 26.6 MB / 29.0 MB
+  缓存 24000 个用户，堆使用 27.9 MB / 29.0 MB
+[Full GC (Ergonomics) [PSYoungGen: 8192K->7368K(9216K)] [ParOldGen: 20454K->20453K(20480K)] 28646K->27822K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0201758 secs] [Times: user=0.12 sys=0.11, real=0.02 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8157K(9216K)] [ParOldGen: 20453K->20325K(20480K)] 28645K->28482K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0073167 secs] [Times: user=0.20 sys=0.09, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8189K(9216K)] [ParOldGen: 20325K->20325K(20480K)] 28517K->28515K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0069835 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8191K(9216K)] [ParOldGen: 20325K->20325K(20480K)] 28517K->28517K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0072497 secs] [Times: user=0.17 sys=0.11, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8191K(9216K)] [ParOldGen: 20339K->20338K(20480K)] 28531K->28530K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0068063 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8191K(9216K)] [ParOldGen: 20338K->20338K(20480K)] 28530K->28530K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0070744 secs] [Times: user=0.09 sys=0.22, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8191K(9216K)] [ParOldGen: 20352K->20352K(20480K)] 28544K->28543K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0071879 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8191K(9216K)] [ParOldGen: 20352K->20352K(20480K)] 28544K->28543K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0072870 secs] [Times: user=0.31 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8191K(9216K)] [ParOldGen: 20364K->20364K(20480K)] 28556K->28556K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0075413 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8191K(9216K)] [ParOldGen: 20377K->20376K(20480K)] 28569K->28568K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0066239 secs] [Times: user=0.19 sys=0.02, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8191K(9216K)] [ParOldGen: 20389K->20388K(20480K)] 28581K->28580K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0072042 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20388K->20388K(20480K)] 28580K->28580K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0072744 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20401K->20400K(20480K)] 28593K->28592K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0074097 secs] [Times: user=0.03 sys=0.03, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20413K->20412K(20480K)] 28605K->28604K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0070383 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20424K->20424K(20480K)] 28616K->28616K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0072894 secs] [Times: user=0.28 sys=0.03, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20436K->20436K(20480K)] 28628K->28628K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0081256 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20449K->20448K(20480K)] 28641K->28640K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0077671 secs] [Times: user=0.30 sys=0.01, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20460K->20459K(20480K)] 28652K->28651K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0075585 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20472K->20471K(20480K)] 28664K->28663K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0075491 secs] [Times: user=0.25 sys=0.06, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20480K->20479K(20480K)] 28672K->28671K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0079521 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0081913 secs] [Times: user=0.28 sys=0.03, real=0.01 secs]
+[Full GC (Allocation Failure) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20438K(20480K)] 28671K->28630K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0238092 secs] [Times: user=0.19 sys=0.11, real=0.02 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20442K->20442K(20480K)] 28634K->28634K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0085928 secs] [Times: user=0.31 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20454K->20453K(20480K)] 28646K->28645K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0078655 secs] [Times: user=0.31 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20466K->20465K(20480K)] 28658K->28657K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0082778 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20478K->20478K(20480K)] 28670K->28670K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0075817 secs] [Times: user=0.25 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0072710 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Allocation Failure) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0072476 secs] [Times: user=0.25 sys=0.06, real=0.01 secs]
+java.lang.OutOfMemoryError: Java heap space
+Dumping heap to java_pid40880.hprof ...
+Heap dump file created [31495594 bytes in 0.017 secs]
+
+  ★ OOM！缓存了 24905 个用户后堆耗尽
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20478K(20480K)] 28671K->28670K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0133303 secs] [Times: user=0.03 sys=0.00, real=0.01 secs]
+  错误: Java heap space
+
+  排查流程：
+  1. jmap -histo <PID> → 发现大量 byte[] 和 HashMap$Node
+  2. MAT 打开 dump → Dominator Tree → HashMap 占了 90% 内存
+  3. 找到持有 HashMap 的变量 → LOCAL_CACHE（static 字段）
+  4. 代码审查 → 只有 put 没有 remove，也没有 size 限制
+
+  修复方案：
+  1. 用 Caffeine / Guava Cache 替代 HashMap（自带淘汰）[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4108K->4108K(1056768K)], 0.0073596 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0071322 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+  2. 设置 maximumSize + expireAfterWrite
+  3. 或者用 Redis 做分布式缓存（不占 JVM 堆内存）
+
+  正确写法示例：
+    Cache<String, byte[]> cache = Caffeine.newBuilder()
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0073997 secs] [Times: user=0.30 sys=0.02, real=0.01 secs]
+        .maximumSize(10_000)              // 最多 1 万条
+        .expireAfterWrite(10, MINUTES)    // 10 分钟过期[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0078304 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+
+        .build();[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0076988 secs] [Times: user=0.31 sys=0.00, real=0.01 secs]
+
+
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0242443 secs] [Times: user=0.02 sys=0.00, real=0.02 secs]
+========================================
+  OOM 排查 SOP（标准流程）
+========================================
+
+  Step 1: 收集信息
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0084265 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+    - 确认 -XX:+HeapDumpOnOutOfMemoryError 已开启
+    - 收集 GC 日志、heap dump、异常堆栈
+
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0086918 secs] [Times: user=0.00 sys=0.02, real=0.01 secs]
+  Step 2: 分析 dump
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0083037 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0092998 secs] [Times: user=0.31 sys=0.00, real=0.01 secs]
+[Full GC (Allocation Failure) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0090131 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0090311 secs] [Times: user=0.27 sys=0.00, real=0.01 secs]
+[Full GC (Allocation Failure) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4109K->4109K(1056768K)], 0.0093741 secs] [Times: user=0.26 sys=0.02, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4110K->4110K(1056768K)], 0.0084310 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Allocation Failure) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4110K->4110K(1056768K)], 0.0094225 secs] [Times: user=0.02 sys=0.00, real=0.01 secs]
+*** java.lang.instrument ASSERTION FAILED ***: "!errorOutstanding" with message can't create name string at JPLISAgent.c line: 807
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4110K->4110K(1056768K)], 0.0109685 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4110K->4110K(1056768K)], 0.0081687 secs] [Times: user=0.30 sys=0.02, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4112K->4112K(1056768K)], 0.0079089 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Allocation Failure) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4112K->4112K(1056768K)], 0.0081763 secs] [Times: user=0.31 sys=0.00, real=0.01 secs]
+Exception in thread "main" *** java.lang.instrument ASSERTION FAILED ***: "!errorOutstanding" with message can't create byte arrau at JPLISAgent.c line: 813
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4113K->4113K(1056768K)], 0.0081643 secs] [Times: user=0.31 sys=0.00, real=0.01 secs]
+[Full GC (Allocation Failure) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4113K->4113K(1056768K)], 0.0076346 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20480K->20479K(20480K)] 28672K->28671K(29696K), [Metaspace: 4117K->4117K(1056768K)], 0.0082750 secs] [Times: user=0.25 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4117K->4117K(1056768K)], 0.0077348 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+*** java.lang.instrument ASSERTION FAILED ***: "!errorOutstanding" with message can't create byte arrau at JPLISAgent.c line: 813
+[Full GC (Allocation Failure) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4117K->4117K(1056768K)], 0.0079874 secs] [Times: user=0.02 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4130K->4130K(1056768K)], 0.0079273 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4130K->4130K(1056768K)], 0.0080176 secs] [Times: user=0.03 sys=0.00, real=0.01 secs]
+*** java.lang.instrument ASSERTION FAILED ***: "!errorOutstanding" with message can't create byte arrau at JPLISAgent.c line: 813
+
+Exception: java.lang.OutOfMemoryError thrown from the UncaughtExceptionHandler in thread "main"
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4130K->4130K(1056768K)], 0.0076089 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Allocation Failure) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4130K->4130K(1056768K)], 0.0073040 secs] [Times: user=0.01 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) [PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20479K(20480K)] 28671K->28671K(29696K), [Metaspace: 4132K->4132K(1056768K)], 0.0072312 secs] [Times: user=0.00 sys=0.00, real=0.01 secs]
+[Full GC (Ergonomics) *** java.lang.instrument ASSERTION FAILED ***: "!errorOutstanding" with message can't create byte arrau at JPLISAgent.c line: 813
+[PSYoungGen: 8192K->8192K(9216K)] [ParOldGen: 20479K->20478K(20480K)] 28671K->28670K(29696K), [Metaspace: 4132K->4132K(1056768K)], 0.0220734 secs] [Times: user=0.25 sys=0.01, real=0.02 secs]
+
+Process finished with exit code 1

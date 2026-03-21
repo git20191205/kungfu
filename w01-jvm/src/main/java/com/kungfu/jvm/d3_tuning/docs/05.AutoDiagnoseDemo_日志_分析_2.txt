@@ -1,0 +1,123 @@
+AutoDiagnoseDemo 诊断文件分析（第三次运行，PID: 46612，清理修复后）
+====================================================================
+
+1. 05.AutoDiagnoseDemo_cpu_jps.txt — 进程列表
+----------------------------------------------
+列出当前所有 Java 进程：
+  - PID 46612  AutoDiagnoseDemo    → 我们自己
+  - PID 8656   sun.tools.jps.Jps   → jps 命令本身（每次运行都会出现，正常）
+  - PID 14492  com.intellij.idea.Main → IDEA 主进程
+  - 其余为 IDEA 编译进程（org.jetbrains.jps.cmdline.Launcher）
+
+场景干净：无残留线程。
+
+
+2. 05.AutoDiagnoseDemo_cpu_jstack.txt — CPU 飙高场景
+------------------------------------------------------
+场景干净：无残留线程。
+
+关键业务线程：
+  ★ "cpu-hog-thread" #20 — RUNNABLE
+    堆栈定位到 AutoDiagnoseDemo.java:81（while(running.get()) 死循环）
+    → 这就是 CPU 100% 的元凶，jstack 直接定位到代码行
+
+JVM 内部线程（正常存在，不是问题）：
+  - C2 CompilerThread0~7  — JIT C2 编译器线程，状态 RUNNABLE 但实际在等待编译任务
+  - C1 CompilerThread8~11 — JIT C1 编译器线程，同上
+  - Finalizer             — WAITING，等待处理引用队列，正常
+  - Reference Handler     — WAITING，处理 Reference 对象，正常
+  - Monitor Ctrl-Break    — IDEA 监控线程，卡在 SocketInputStream.read（等 IDEA 指令）
+  - main                  — RUNNABLE，在 runCommand() 读取 jstack 命令输出
+
+诊断结论：
+  线上排查 CPU 飙高时，用 jstack 找 RUNNABLE 状态的业务线程，
+  排除 CompilerThread/GC thread 等 JVM 内部线程，剩下的就是嫌疑线程。
+  堆栈直接告诉你代码卡在哪一行。
+
+
+3. 05.AutoDiagnoseDemo_deadlock_jstack.txt — 死锁场景
+------------------------------------------------------
+场景干净：cpu-hog-thread 已清理，无残留。
+
+死锁线程状态（使用 ReentrantLock）：
+  ★ "deadlock-thread-1" #21 — WAITING (parking)
+    持有: 0x66c171b68 (ReentrantLock$NonfairSync) → 即 LOCK_A
+    等待: 0x66c171b38 (ReentrantLock$NonfairSync) → 即 LOCK_B
+    堆栈: lockInterruptibly → doAcquireInterruptibly → parkAndCheckInterrupt → park
+
+  ★ "deadlock-thread-2" #22 — WAITING (parking)
+    持有: 0x66c171b38 (ReentrantLock$NonfairSync) → 即 LOCK_B
+    等待: 0x66c171b68 (ReentrantLock$NonfairSync) → 即 LOCK_A
+    堆栈: 同上
+
+JVM 自动检测到死锁，末尾输出：
+  Found one Java-level deadlock:
+  "deadlock-thread-2":
+    waiting for ownable synchronizer 0x66c171b38, which is held by "deadlock-thread-1"
+  "deadlock-thread-1":
+    waiting for ownable synchronizer 0x66c171b68, which is held by "deadlock-thread-2"
+  Found 1 deadlock.
+
+与 synchronized 死锁的区别：
+  - synchronized 死锁: "waiting to lock monitor 0x..."      + BLOCKED 状态
+  - ReentrantLock 死锁: "waiting for ownable synchronizer 0x..." + WAITING (parking) 状态
+  两者 jstack 都能自动检测到。
+
+诊断结论：
+  jstack 末尾出现 "Found one Java-level deadlock" 就是死锁确认。
+  输出清楚列出谁持有什么锁、在等什么锁，顺着锁链就能找到死锁根因。
+
+
+4. 05.AutoDiagnoseDemo_threadpool_jstack.txt — 线程池满场景
+------------------------------------------------------------
+★ 场景干净：无 deadlock-thread 残留，无死锁报告。（修复前此处有残留）
+
+业务线程（5 个线程池工作线程）：
+  "biz-pool-23" #23 — TIMED_WAITING (sleeping)
+  "biz-pool-24" #24 — TIMED_WAITING (sleeping)
+  "biz-pool-25" #25 — TIMED_WAITING (sleeping)
+  "biz-pool-26" #26 — TIMED_WAITING (sleeping)
+  "biz-pool-27" #27 — TIMED_WAITING (sleeping)
+
+堆栈一致，从上到下：
+  Thread.sleep(Native Method)                          ← 卡在这里（模拟下游超时）
+  AutoDiagnoseDemo.lambda$diagnoseThreadPoolFull       ← 业务代码
+  Executors$RunnableAdapter.call                       ← 适配层
+  FutureTask.run                                       ← Future 执行
+  ThreadPoolExecutor.runWorker                         ← 线程池核心调度
+  ThreadPoolExecutor$Worker.run                        ← Worker 线程入口
+  Thread.run                                           ← 线程启动
+
+5 个线程全部被慢任务占满，后续任务只能在队列中等待。
+
+诊断结论：
+  线上遇到这种情况，jstack 中 Thread.sleep 会换成真实的阻塞点：
+  - SocketInputStream.read → 下游 HTTP 调用超时
+  - SocketChannel.read → NIO 调用超时
+  - Connection.execute → 数据库慢查询
+  看到大量业务线程卡在同一个 I/O 调用上，就是线程池被打满的信号。
+
+
+总结
+====
+
+三次运行对比：
+
+  第一次（PID 3648）：
+    cpu_jstack    → 干净
+    deadlock      → 残留 cpu-hog-thread（boolean[] 无 volatile 语义，线程停不下来）
+    threadpool    → 残留 deadlock-thread（synchronized 死锁无法被 stop）
+
+  第二次（PID 43868）：改用 AtomicBoolean + Thread.stop()
+    cpu_jstack    → 干净
+    deadlock      → 干净（AtomicBoolean 修复了 cpu-hog 清理）
+    threadpool    → 仍残留 deadlock-thread（Thread.stop 对 BLOCKED 线程不可靠）
+
+  第三次（PID 46612）：改用 ReentrantLock + interrupt()
+    cpu_jstack    → 干净 ✓
+    deadlock      → 干净 ✓
+    threadpool    → 干净 ✓  ← 终于干净了
+
+关键修复：
+  1. cpu-hog 清理: boolean[] → AtomicBoolean（保证可见性）
+  2. deadlock 清理: synchronized → ReentrantLock + lockInterruptibly（可被 interrupt 终止）

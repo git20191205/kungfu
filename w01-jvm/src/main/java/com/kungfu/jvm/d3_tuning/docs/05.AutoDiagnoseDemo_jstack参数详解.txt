@@ -1,0 +1,271 @@
+jstack 输出参数详解（基于 AutoDiagnoseDemo 实际输出）
+=====================================================
+
+
+一、jstack 输出整体结构
+========================
+
+  ┌─────────────────────────────────────────────────────────┐
+  │ 时间戳 + JVM 版本信息                                    │
+  │ Full thread dump Java HotSpot(TM) 64-Bit Server VM ...  │
+  ├─────────────────────────────────────────────────────────┤
+  │ Java 线程列表（每个线程一段）                              │
+  │   "线程名" #编号 daemon prio=X ...                       │
+  │      java.lang.Thread.State: XXX                        │
+  │      堆栈 ...                                            │
+  ├─────────────────────────────────────────────────────────┤
+  │ VM 内部线程（无 Thread.State）                            │
+  │   "VM Thread" / "GC task thread" / ...                  │
+  ├─────────────────────────────────────────────────────────┤
+  │ JNI global references: N                                │
+  ├─────────────────────────────────────────────────────────┤
+  │ 死锁信息（如果有的话）                                    │
+  │   Found one Java-level deadlock: ...                    │
+  └─────────────────────────────────────────────────────────┘
+
+
+二、线程头部参数详解
+====================
+
+以实际输出为例：
+
+  "cpu-hog-thread" #20 daemon prio=5 os_prio=0 tid=0x000001dd8343d000 nid=0x3b90 runnable [0x0000005e72afe000]
+  ──────────────── ─── ────── ────── ──────── ──────────────────── ────────── ──────── ────────────────────
+       ①            ②    ③     ④       ⑤            ⑥               ⑦         ⑧           ⑨
+
+  ① 线程名（Thread Name）
+     "cpu-hog-thread"
+     → new Thread(..., "cpu-hog-thread") 中设置的名称
+     → 线上排查时靠线程名快速判断属于哪个模块/线程池
+     → 最佳实践：永远给线程起有意义的名字！
+
+  ② 线程编号（Thread Number）
+     #20
+     → JVM 内部分配的线程序号，从 #1（main）开始递增
+     → 仅用于标识，不是操作系统的线程 ID
+
+  ③ 守护线程标志（Daemon Flag）
+     daemon
+     → 出现 "daemon" 表示这是守护线程（setDaemon(true)）
+     → 不出现则是用户线程（如 main 线程）
+     → 所有用户线程结束后 JVM 退出，不等待守护线程
+
+  ④ Java 线程优先级（Priority）
+     prio=5
+     → Thread.setPriority() 设置的值，范围 1~10
+     → 1=MIN_PRIORITY, 5=NORM_PRIORITY, 10=MAX_PRIORITY
+     → 大多数情况下操作系统不严格遵守，仅作为调度建议
+
+  ⑤ 操作系统线程优先级（OS Priority）
+     os_prio=0
+     → 操作系统层面的线程优先级
+     → Windows: 0=正常, 2=高于正常（如 CompilerThread 的 os_prio=2）
+     → Linux: 一般都是 0
+
+  ⑥ Java 线程 ID（Thread ID）
+     tid=0x000001dd8343d000
+     → JVM 内部的线程对象地址（C++ 层面的 JavaThread 指针）
+     → 不是 Java 层面的 Thread.getId()
+
+  ⑦ 本地线程 ID（Native Thread ID）
+     nid=0x3b90
+     → 操作系统的原生线程 ID（16 进制）
+     → ★ 这是 CPU 飙高排查的关键参数！
+     → Linux 排查流程：
+       1. top -Hp <PID> → 找到 CPU 高的线程 TID（10 进制）
+       2. printf '%x\n' <TID> → 转成 16 进制
+       3. jstack <PID> | grep <16进制TID> → 找到对应线程
+     → Windows: 对应 Process Explorer 中看到的 TID
+     → 示例：nid=0x3b90 → 十进制 15248
+
+  ⑧ 线程状态描述（Native State Description）
+     runnable / waiting on condition / waiting for monitor entry / in Object.wait() / sleeping
+     → 这是 JVM 底层（native）对线程状态的描述，和 Java Thread.State 有对应关系：
+
+     ┌──────────────────────────────┬─────────────────────────────────────────────┐
+     │ native 描述                  │ 含义                                         │
+     ├──────────────────────────────┼─────────────────────────────────────────────┤
+     │ runnable                     │ 正在运行或可运行（对应 RUNNABLE）              │
+     │ waiting on condition         │ 等待某个条件（对应 WAITING/TIMED_WAITING）     │
+     │                              │   → sleep、park、LockSupport.park 等         │
+     │ waiting for monitor entry    │ 等待进入 synchronized 块（对应 BLOCKED）       │
+     │ in Object.wait()             │ 调用了 Object.wait()（对应 WAITING）          │
+     │ sleeping                     │ 在 Thread.sleep 中（对应 TIMED_WAITING）      │
+     └──────────────────────────────┴─────────────────────────────────────────────┘
+
+  ⑨ 线程栈起始地址（Stack Address）
+     [0x0000005e72afe000]
+     → 线程栈的内存起始地址
+     → [0x0000000000000000] 表示该线程没有 Java 栈帧（如 JVM 内部线程）
+     → 一般不需要关注
+
+
+三、Java 线程状态详解（java.lang.Thread.State）
+================================================
+
+  ┌───────────────────────┬──────────────────────────────────────────────────────────┐
+  │ 状态                   │ 含义 + 触发条件                                          │
+  ├───────────────────────┼──────────────────────────────────────────────────────────┤
+  │ RUNNABLE              │ 正在运行或等待 CPU 时间片                                  │
+  │                       │ → 正在执行代码 或 在进行 I/O 操作（如读文件/网络）          │
+  │                       │ → CPU 飙高排查就找这个状态的业务线程                        │
+  ├───────────────────────┼──────────────────────────────────────────────────────────┤
+  │ BLOCKED               │ 等待获取 synchronized 锁                                 │
+  │ (on object monitor)   │ → 另一个线程持有该锁，本线程排队等待                       │
+  │                       │ → 大量 BLOCKED 说明锁竞争严重                             │
+  ├───────────────────────┼──────────────────────────────────────────────────────────┤
+  │ WAITING               │ 无限等待，直到被唤醒                                       │
+  │                       │ → Object.wait()（无超时）                                 │
+  │                       │ → Thread.join()（无超时）                                  │
+  │                       │ → LockSupport.park()                                     │
+  ├───────────────────────┼──────────────────────────────────────────────────────────┤
+  │ WAITING (parking)     │ 通过 LockSupport.park() 进入等待                          │
+  │                       │ → ReentrantLock.lockInterruptibly() 等待锁时就是这个状态   │
+  │                       │ → Condition.await() 也是                                  │
+  ├───────────────────────┼──────────────────────────────────────────────────────────┤
+  │ TIMED_WAITING         │ 有超时的等待，超时后自动唤醒                                │
+  │ (sleeping)            │ → Thread.sleep(millis)                                   │
+  │ (on object monitor)   │ → Object.wait(timeout)                                   │
+  │ (parking)             │ → LockSupport.parkNanos() / parkUntil()                  │
+  │                       │ → Thread.join(timeout)                                    │
+  └───────────────────────┴──────────────────────────────────────────────────────────┘
+
+
+四、堆栈信息中的锁标记详解
+============================
+
+堆栈中会出现以下锁相关标记：
+
+  (1) - locked <0x...> (a ClassName)
+      已持有该锁。
+      示例：
+        at java.io.BufferedReader.readLine(BufferedReader.java:324)
+        - locked <0x000000066c3dc230> (a java.io.InputStreamReader)
+      → 当前线程在执行 readLine 时持有 InputStreamReader 对象的 synchronized 锁
+
+  (2) - waiting to lock <0x...> (a ClassName)
+      等待获取 synchronized 锁（对方持有，自己 BLOCKED）。
+      示例（synchronized 死锁）：
+        - waiting to lock <0x000000066c16bb00> (a java.lang.Object)
+        - locked <0x000000066c16baf0> (a java.lang.Object)
+      → 持有 LOCK_A，等待 LOCK_B
+
+  (3) - waiting on <0x...> (a ClassName)
+      调用了 Object.wait()，在该对象的等待队列中。
+      示例：
+        at java.lang.Object.wait(Native Method)
+        - waiting on <0x000000066c008f10> (a java.lang.ref.ReferenceQueue$Lock)
+      → Finalizer 线程在等待引用队列有新的待回收对象
+
+  (4) - parking to wait for <0x...> (a ClassName)
+      通过 LockSupport.park() 等待（ReentrantLock/Condition 等 AQS 机制）。
+      示例：
+        at sun.misc.Unsafe.park(Native Method)
+        - parking to wait for <0x000000066c171b38> (a ReentrantLock$NonfairSync)
+      → 等待获取 ReentrantLock 锁
+
+
+五、三种线程类型
+=================
+
+jstack 输出中的线程分为三类：
+
+  (1) Java 应用线程（有完整 Thread.State + 堆栈）
+
+      "cpu-hog-thread" #20 daemon prio=5 os_prio=0 tid=... nid=... runnable [0x...]
+         java.lang.Thread.State: RUNNABLE
+           at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.lambda$...
+
+      → 我们自己的代码创建的线程，排查问题主要看这些
+
+  (2) JVM 内部服务线程（有 Thread.State 但堆栈很短或为空）
+
+      "Service Thread"      — JVM 内部服务
+      "C1 CompilerThread"   — C1 即时编译器（Client Compiler，编译热点方法）
+      "C2 CompilerThread"   — C2 即时编译器（Server Compiler，更激进的优化）
+      "Signal Dispatcher"   — 处理 OS 信号（如 kill -3 触发 thread dump）
+      "Attach Listener"     — 支持 jmap/jstack 等工具的 attach 机制
+      "Finalizer"           — 执行对象的 finalize() 方法
+      "Reference Handler"   — 处理 Reference（WeakReference/SoftReference 等）
+      "Monitor Ctrl-Break"  — IDEA 专属，监控 Ctrl+Break 信号
+
+      → 正常运行所必需的线程，一般不用关注
+
+  (3) VM 原生线程（无 Thread.State，只有简短描述）
+
+      "VM Thread"           — 执行 VM 操作（如 GC safepoint）
+      "GC task thread#0 (ParallelGC)" — GC 并行工作线程
+      "VM Periodic Task Thread"       — 周期性任务（如采样统计）
+
+      → 数量和 GC 收集器相关
+      → 本例有 20 个 GC task thread（ParallelGC 默认 = CPU 核心数）
+
+
+六、死锁报告详解
+=================
+
+jstack 在末尾自动检测并输出死锁信息：
+
+  Found one Java-level deadlock:              ← 检测到 Java 级别的死锁
+  =============================
+  "deadlock-thread-2":                        ← 死锁线程 1
+    waiting for ownable synchronizer           ← 等待的锁类型
+    0x000000066c171b38,                        ← 锁对象地址
+    (a java.util.concurrent.locks.ReentrantLock$NonfairSync),  ← 锁的类型
+    which is held by "deadlock-thread-1"       ← 被谁持有
+  "deadlock-thread-1":                        ← 死锁线程 2
+    waiting for ownable synchronizer
+    0x000000066c171b68,
+    (a java.util.concurrent.locks.ReentrantLock$NonfairSync),
+    which is held by "deadlock-thread-2"       ← 形成环路 → 死锁确认
+
+  Java stack information for the threads listed above:
+  ===================================================
+  （列出死锁线程的完整堆栈，方便定位代码）
+
+  Found 1 deadlock.                            ← 死锁总数
+
+  两种锁的死锁报告区别：
+  ┌────────────────────┬───────────────────────────────────────────┐
+  │ synchronized       │ waiting to lock monitor 0x...              │
+  │                    │ (object 0x..., a java.lang.Object)         │
+  ├────────────────────┼───────────────────────────────────────────┤
+  │ ReentrantLock      │ waiting for ownable synchronizer 0x...     │
+  │                    │ (a ReentrantLock$NonfairSync)              │
+  └────────────────────┴───────────────────────────────────────────┘
+
+
+七、JNI global references
+==========================
+
+  JNI global references: 318
+
+  → JNI 全局引用的数量
+  → 全局引用不会被 GC 回收，需要手动释放（DeleteGlobalRef）
+  → 如果这个数字持续增长 → JNI 全局引用泄漏
+  → 正常值通常在几百以内，如果到了几万就有问题
+
+
+八、线上排查速查
+=================
+
+  ★ CPU 飙高：
+    → jstack 中找 RUNNABLE 的业务线程
+    → 排除 CompilerThread/GC thread 等 JVM 内部线程
+    → nid 转十进制 = top -Hp 看到的线程 TID
+
+  ★ 死锁：
+    → 直接搜 "Found one Java-level deadlock"
+    → 看谁持有什么锁，在等什么锁
+
+  ★ 线程池打满：
+    → 大量同名线程处于 WAITING/TIMED_WAITING
+    → 堆栈显示卡在同一个 I/O 调用（如 SocketInputStream.read）
+
+  ★ 锁竞争：
+    → 大量线程处于 BLOCKED (on object monitor)
+    → "waiting to lock" 同一个锁地址 → 热点锁
+
+  ★ 连续 dump 对比：
+    → 间隔 5 秒做 3 次 jstack
+    → 同一个线程连续 3 次都在同一个位置 → 就是问题点

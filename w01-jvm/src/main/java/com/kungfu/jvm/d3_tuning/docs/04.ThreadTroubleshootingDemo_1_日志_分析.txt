@@ -1,0 +1,46 @@
+❯ 继续跑 ThreadTroubleshootingDemo 日志：d3_tuning/docs/04.ThreadTroubleshootingDemo_日志.txt
+
+  Read 1 file (ctrl+o to expand)
+
+● cpuSpike 日志分析
+
+  1. 运行参数
+
+  无特殊 VM 参数，直接运行。PID: 34700。
+
+  2. 场景演示
+
+  程序启动了两个线程：
+  - cpu-hog-thread — 死循环线程，30 秒内空转了 131 亿次（13152728383）
+  - normal-worker-thread — 正常线程，在 sleep
+
+  3. 关键观察点
+
+  线程状态对比：
+  cpu-hog-thread       → RUNNABLE        ← CPU 100% 的线程
+  normal-worker-thread → TIMED_WAITING   ← 正常 sleep 的线程
+
+  核心结论：CPU 飙高的线程一定是 RUNNABLE 状态。WAITING/TIMED_WAITING 的线程不消耗 CPU。
+
+  4. CPU 飙高排查三板斧（面试必背）
+
+  top          → 找到 CPU 高的 Java 进程 PID
+  top -Hp PID  → 找到 CPU 高的线程 TID
+  printf '%x' TID → 转 16 进制
+  jstack PID | grep 0x<hex> -A 30 → 定位到代码行
+
+  5. jstack 输出要点
+
+  "cpu-hog-thread" #12 daemon prio=5
+     java.lang.Thread.State: RUNNABLE
+     at ...ThreadTroubleshootingDemo.lambda$cpuSpike$0
+        (ThreadTroubleshootingDemo.java:XX)  ← 直接定位到死循环代码行
+
+  6. 补充：连续 dump 对比法
+
+  日志中提到的实用技巧：
+  - 连续 3 次 jstack（间隔 5 秒），如果同一线程一直停在同一位置 → 就是问题点
+  - 这比单次 dump 更可靠，排除偶然性
+
+  ---
+  继续跑 deadlock 场景。在代码中注释掉 cpuSpike()，取消注释 deadlock()，直接运行。

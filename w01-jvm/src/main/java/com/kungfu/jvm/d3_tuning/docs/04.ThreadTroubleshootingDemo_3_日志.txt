@@ -1,0 +1,106 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -agentlib:jdwp=transport=dt_socket,address=127.0.0.1:65035,suspend=y,server=n "-javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\plugins\java\lib\rt\debugger-agent.jar=file:///C:/Users/ADMINI~1/AppData/Local/Temp/capture4906727288674175389.props" -Dkotlinx.coroutines.debug.enable.creation.stack.trace=false -Ddebugger.agent.enable.coroutines=true -Dkotlinx.coroutines.debug.enable.flows.stack.trace=true -Dkotlinx.coroutines.debug.enable.mutable.state.flows.stack.trace=true -Ddebugger.async.stack.trace.for.all.threads=true -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu;D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar com.kungfu.jvm.d3_tuning.ThreadTroubleshootingDemo
+Connected to the target VM, address: '127.0.0.1:65035', transport: 'socket'
+========================================
+  线程问题排查实战
+========================================
+
+  当前进程 PID: 26628
+  请在另一个终端执行: jstack 26628
+
+--- 场景三：线程池打满 ---
+
+  模拟：线程池只有 3 个线程，但任务都很慢（模拟下游超时）
+  队列容量 5，后续任务全部阻塞等待
+
+  线程池配置: core=3, max=3, queue=5
+  提交 8 个慢任务（每个耗时 15 秒模拟下游超时）
+
+  [Task-2] 开始执行（模拟调用下游服务）...
+  [Task-1] 开始执行（模拟调用下游服务）...
+  [Task-3] 开始执行（模拟调用下游服务）...
+
+  线程池状态：
+    活跃线程: 3
+    队列等待: 5
+    已完成:   0
+
+  业务线程状态：
+    [biz-worker-25] → TIMED_WAITING
+    [biz-worker-24] → TIMED_WAITING
+    [biz-worker-23] → TIMED_WAITING
+    TIMED_WAITING: 3 个（在 sleep 中，模拟下游超时）
+
+  排查步骤：
+  1. jstack <PID> → 看到大量线程处于 WAITING / TIMED_WAITING
+  2. 堆栈显示卡在哪里（如 SocketInputStream.read → 下游超时）
+  3. 线程名中通常能看出是哪个线程池
+
+  ★ jstack 中线程状态含义：
+  ┌──────────────────┬──────────────────────────────────────┐
+  │ 状态              │ 含义                                  │
+  ├──────────────────┼──────────────────────────────────────┤
+  │ RUNNABLE         │ 正在运行或等待 CPU 时间片               │
+  │ BLOCKED          │ 等待获取 synchronized 锁               │
+  │ WAITING          │ 无限等待（wait/join/park 无超时）        │
+  │ TIMED_WAITING    │ 有超时的等待（sleep/wait+timeout/park）  │
+  └──────────────────┴──────────────────────────────────────┘
+
+  修复方案：
+  1. 设置合理的超时: HTTP 调用 connectTimeout=3s, readTimeout=5s
+  2. 加熔断器: Sentinel / Resilience4j，下游异常时快速失败
+  3. 线程池隔离: 不同下游服务用不同线程池，互不影响
+  4. 监控线程池指标: 活跃线程数、队列大小、拒绝次数
+
+  等待 15 秒（期间用 jstack 观察线程状态）...
+
+  [Task-1] 执行完成
+  [Task-2] 执行完成
+  [Task-3] 执行完成
+  [Task-4] 开始执行（模拟调用下游服务）...
+  [Task-5] 开始执行（模拟调用下游服务）...
+  [Task-6] 开始执行（模拟调用下游服务）...
+========================================
+  线上排查速查表
+========================================
+
+  ★ CPU 飙高排查（面试必背）：
+  ┌───┬──────────────────────────────────────────┐
+  │ # │ 操作                                      │
+  ├───┼──────────────────────────────────────────┤
+  │ 1 │ top → 找 CPU 高的 Java 进程 PID           │
+  │ 2 │ top -Hp <PID> → 找 CPU 高的线程 TID       │
+  │ 3 │ printf '%x' <TID> → TID 转 16 进制        │
+  │ 4 │ jstack <PID> | grep <hex> -A 30          │
+  │ 5 │ → 看堆栈定位到具体代码行                    │
+  └───┴──────────────────────────────────────────┘
+
+  ★ 死锁排查：
+  ┌───┬──────────────────────────────────────────┐
+  │ # │ 操作                                      │
+  ├───┼──────────────────────────────────────────┤
+  │ 1 │ jstack -l <PID>                           │
+  │ 2 │ 搜索 "Found one Java-level deadlock"      │
+  │ 3 │ 看哪两个线程互相持锁等待                    │
+  │ 4 │ 统一锁顺序 / 用 tryLock + 超时             │
+  └───┴──────────────────────────────────────────┘
+
+  ★ 线程池打满排查：
+  ┌───┬──────────────────────────────────────────┐
+  │ # │ 操作                                      │
+  ├───┼──────────────────────────────────────────┤
+  │ 1 │ jstack <PID> → 看线程状态分布              │
+  │ 2 │ 大量 WAITING/TIMED_WAITING → 被阻塞了     │
+  │ 3 │ 堆栈中找卡在哪里（通常是 I/O 调用）         │
+  │ 4 │ 加超时 / 加熔断 / 线程池隔离               │
+  └───┴──────────────────────────────────────────┘
+
+  ★ 线程 dump 分析技巧：
+    1. 连续 dump 3 次（间隔 5 秒）: jstack <PID> > dump1.txt
+    2. 对比 3 次 dump → 如果同一个线程一直在同一个位置 → 就是问题点
+    3. 统计各状态线程数: grep 'java.lang.Thread.State' dump.txt | sort | uniq -c
+    4. 在线分析工具: https://fastthread.io
+========================================
+Disconnected from the target VM, address: '127.0.0.1:65035', transport: 'socket'
+
+Process finished with exit code 0
+

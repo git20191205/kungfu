@@ -1,0 +1,266 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=51640 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo
+========================================
+  自动化 JVM 诊断
+========================================
+
+  当前进程 PID: 3648
+  诊断结果将保存到 w01-jvm/src/main/java/com/kungfu/jvm/d3_tuning/docs 目录
+
+--- 场景一：CPU 飙高诊断 ---
+
+  [启动] 死循环线程 cpu-hog-thread
+  [执行] jps -l
+  [保存] → 05.AutoDiagnoseDemo_cpu_jps.txt
+  [执行] jstack 3648
+  [保存] → 05.AutoDiagnoseDemo_cpu_jstack.txt
+
+  [分析] RUNNABLE 线程：
+    → "cpu-hog-thread" #20 daemon prio=5 os_prio=0 tid=0x00000209f8da6000 nid=0x8704 runnable [0x00000059ee8ff000]
+    → "Service Thread" #19 daemon prio=9 os_prio=0 tid=0x00000209f6864800 nid=0x8bd4 runnable [0x0000000000000000]
+    → "C1 CompilerThread11" #18 daemon prio=9 os_prio=2 tid=0x00000209f6760800 nid=0x95c4 waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread10" #17 daemon prio=9 os_prio=2 tid=0x00000209f6763800 nid=0x18bc waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread9" #16 daemon prio=9 os_prio=2 tid=0x00000209f6762800 nid=0xa7c8 waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread8" #15 daemon prio=9 os_prio=2 tid=0x00000209f6761000 nid=0x7774 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread7" #14 daemon prio=9 os_prio=2 tid=0x00000209f6762000 nid=0xb93c waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread6" #13 daemon prio=9 os_prio=2 tid=0x00000209f675f000 nid=0x5774 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread5" #12 daemon prio=9 os_prio=2 tid=0x00000209f675f800 nid=0x943c waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread4" #11 daemon prio=9 os_prio=2 tid=0x00000209f675c000 nid=0xa9e0 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread3" #10 daemon prio=9 os_prio=2 tid=0x00000209f6741800 nid=0x6c4c waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread2" #9 daemon prio=9 os_prio=2 tid=0x00000209f6741000 nid=0xa7b8 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread1" #8 daemon prio=9 os_prio=2 tid=0x00000209f6740000 nid=0x7b44 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread0" #7 daemon prio=9 os_prio=2 tid=0x00000209f673e000 nid=0x22f4 waiting on condition [0x0000000000000000]
+    → "Monitor Ctrl-Break" #6 daemon prio=5 os_prio=0 tid=0x00000209f674f000 nid=0x26fc runnable [0x00000059ed9ff000]
+    → "Attach Listener" #5 daemon prio=5 os_prio=2 tid=0x00000209f66d8000 nid=0xb5ac waiting on condition [0x0000000000000000]
+    → "Signal Dispatcher" #4 daemon prio=9 os_prio=2 tid=0x00000209f66d7800 nid=0x948c runnable [0x0000000000000000]
+    → "main" #1 prio=5 os_prio=0 tid=0x00000209dce70000 nid=0x755c runnable [0x00000059ebffe000]
+
+  [停止] 死循环线程已停止
+
+  ★ 诊断结论：
+    如果 cpu-hog-thread 处于 RUNNABLE 状态，说明它在持续消耗 CPU
+    jstack 堆栈可定位到具体死循环代码行
+
+--- 场景二：死锁诊断 ---
+
+  [启动] 两个交叉锁线程
+  [执行] jstack 3648
+  [保存] → 05.AutoDiagnoseDemo_deadlock_jstack.txt
+
+  ★ 诊断结论：
+    检测到死锁！jstack 输出中包含 "Found one Java-level deadlock"
+    修复方案：统一锁顺序 / 用 tryLock + 超时
+
+--- 场景三：线程池满诊断 ---
+
+  [启动] 线程池(5线程) + 5个慢任务
+  [执行] jstack 3648
+  [保存] → 05.AutoDiagnoseDemo_threadpool_jstack.txt
+
+  ★ 线程状态分布：
+    WAITING: 2 个
+    RUNNABLE: 18 个
+    BLOCKED: 2 个
+    TIMED_WAITING: 5 个
+
+  ★ 诊断结论：
+    大量线程处于 WAITING/TIMED_WAITING 状态
+    可能是线程池被慢任务占满，或下游服务超时
+    修复方案：加超时 / 加熔断 / 线程池隔离
+
+========================================
+  所有诊断完成！
+  请查看 w01-jvm/src/main/java/com/kungfu/jvm/d3_tuning/docs 目录下的诊断文件
+========================================
+
+Process finished with exit code 0
+详细解释一下各个诊断文件的内容
+
+  Searched for 1 pattern, read 5 files (ctrl+o to expand)
+
+● 三个场景都跑成功了。逐个分析：
+
+  ---
+  1. 05.AutoDiagnoseDemo_cpu_jps.txt — 进程列表
+
+  列出了当前所有 Java 进程，PID 3648 就是 AutoDiagnoseDemo 自身。45380 是 jps 命令本身（每次运行都会出现）。
+
+  2. 05.AutoDiagnoseDemo_cpu_jstack.txt — CPU 飙高场景
+
+  关键线程：
+  - cpu-hog-thread — RUNNABLE，堆栈定位到 AutoDiagnoseDemo.java:79（死循环那行）。这就是线上排查 CPU 飙高时要找的目标线程。
+  - main — RUNNABLE，卡在 runCommand 的 BufferedReader.readLine()，正在读 jstack 命令的输出，正常。
+
+  3. 05.AutoDiagnoseDemo_deadlock_jstack.txt — 死锁场景
+
+  关键信息：
+  - deadlock-thread-1 — BLOCKED，持有 0x66c16baf0(LOCK_A)，等待 0x66c16bb00(LOCK_B)
+  - deadlock-thread-2 — BLOCKED，持有 0x66c16bb00(LOCK_B)，等待 0x66c16baf0(LOCK_A)
+  - 末尾自动输出了 Found one Java-level deadlock，清楚列出了谁持有什么锁、在等什么锁
+  - 注意：cpu-hog-thread 还在（RUNNABLE），说明场景一的线程没清理干净
+
+  4. 05.AutoDiagnoseDemo_threadpool_jstack.txt — 线程池满场景
+
+  关键信息：
+  - biz-pool-23 ~ biz-pool-27 — 5 个线程全是 TIMED_WAITING (sleeping)，堆栈显示卡在 Thread.sleep → 模拟下游超时
+  - 堆栈链路：lambda → FutureTask.run → ThreadPoolExecutor.runWorker → Worker.run，这是标准的线程池执行路径
+  - deadlock-thread-1/2 还在（BLOCKED），场景二的死锁线程也没清理（daemon 线程，死锁永远不会结束）
+  - 末尾又报了一次 Found one Java-level deadlock，这是残留的死锁线程
+
+  ---
+  有一个问题
+
+  场景之间没有清理干净。场景二的 jstack 里还残留着 cpu-hog-thread，场景三的 jstack 里残留着 deadlock-thread-1/2。这会让各场景的诊断文件不够"干净"。需要修一下吗？
+
+---
+========================================
+  自动化 JVM 诊断
+========================================
+
+  当前进程 PID: 43868
+  诊断结果将保存到 w01-jvm/src/main/java/com/kungfu/jvm/d3_tuning/docs 目录
+
+--- 场景一：CPU 飙高诊断 ---
+
+  [启动] 死循环线程 cpu-hog-thread
+  [执行] jps -l
+  [保存] → 05.AutoDiagnoseDemo_cpu_jps.txt
+  [执行] jstack 43868
+  [保存] → 05.AutoDiagnoseDemo_cpu_jstack.txt
+
+  [分析] RUNNABLE 线程：
+    → "cpu-hog-thread" #20 daemon prio=5 os_prio=0 tid=0x0000027dce38a000 nid=0x7568 runnable [0x000000ecfe7fe000]
+    → "Service Thread" #19 daemon prio=9 os_prio=0 tid=0x0000027dcbe09000 nid=0xb63c runnable [0x0000000000000000]
+    → "C1 CompilerThread11" #18 daemon prio=9 os_prio=2 tid=0x0000027dcbd1f800 nid=0x140c waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread10" #17 daemon prio=9 os_prio=2 tid=0x0000027dcbd1b800 nid=0xba64 waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread9" #16 daemon prio=9 os_prio=2 tid=0x0000027dcbd1e800 nid=0x90c8 waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread8" #15 daemon prio=9 os_prio=2 tid=0x0000027dcbd1d000 nid=0x2cfc waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread7" #14 daemon prio=9 os_prio=2 tid=0x0000027dcbd1b000 nid=0x3c30 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread6" #13 daemon prio=9 os_prio=2 tid=0x0000027dcbd1e000 nid=0x23ac waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread5" #12 daemon prio=9 os_prio=2 tid=0x0000027dcbd1a000 nid=0x8500 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread4" #11 daemon prio=9 os_prio=2 tid=0x0000027dcbd11800 nid=0x4b88 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread3" #10 daemon prio=9 os_prio=2 tid=0x0000027dcbcec800 nid=0x560 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread2" #9 daemon prio=9 os_prio=2 tid=0x0000027dcbce4000 nid=0xb614 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread1" #8 daemon prio=9 os_prio=2 tid=0x0000027dcbce3000 nid=0xad74 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread0" #7 daemon prio=9 os_prio=2 tid=0x0000027dcbccf800 nid=0x8614 waiting on condition [0x0000000000000000]
+    → "Monitor Ctrl-Break" #6 daemon prio=5 os_prio=0 tid=0x0000027dcbcdc800 nid=0x9edc runnable [0x000000ecfd8fe000]
+    → "Attach Listener" #5 daemon prio=5 os_prio=2 tid=0x0000027dcbc55000 nid=0xb6e0 waiting on condition [0x0000000000000000]
+    → "Signal Dispatcher" #4 daemon prio=9 os_prio=2 tid=0x0000027dcbc54000 nid=0x65f8 runnable [0x0000000000000000]
+    → "main" #1 prio=5 os_prio=0 tid=0x0000027d926a1000 nid=0x9090 runnable [0x000000ecfbefe000]
+
+  [清理] 死循环线程已停止
+
+  ★ 诊断结论：
+    如果 cpu-hog-thread 处于 RUNNABLE 状态，说明它在持续消耗 CPU
+    jstack 堆栈可定位到具体死循环代码行
+
+--- 场景二：死锁诊断 ---
+
+  [启动] 两个交叉锁线程
+  [执行] jstack 43868
+  [保存] → 05.AutoDiagnoseDemo_deadlock_jstack.txt
+
+  ★ 诊断结论：
+    检测到死锁！jstack 输出中包含 "Found one Java-level deadlock"
+    修复方案：统一锁顺序 / 用 tryLock + 超时
+  [清理] 死锁线程已强制终止
+
+--- 场景三：线程池满诊断 ---
+
+  [启动] 线程池(5线程) + 5个慢任务
+  [执行] jstack 43868
+  [保存] → 05.AutoDiagnoseDemo_threadpool_jstack.txt
+
+  ★ 线程状态分布：
+    WAITING: 2 个
+    RUNNABLE: 17 个
+    BLOCKED: 2 个
+    TIMED_WAITING: 5 个
+
+  ★ 诊断结论：
+    大量线程处于 WAITING/TIMED_WAITING 状态
+    可能是线程池被慢任务占满，或下游服务超时
+    修复方案：加超时 / 加熔断 / 线程池隔离
+
+========================================
+  所有诊断完成！
+  请查看 w01-jvm/src/main/java/com/kungfu/jvm/d3_tuning/docs 目录下的诊断文件
+========================================
+
+
+---
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=61307 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo
+========================================
+  自动化 JVM 诊断
+========================================
+
+  当前进程 PID: 46612
+  诊断结果将保存到 w01-jvm/src/main/java/com/kungfu/jvm/d3_tuning/docs 目录
+
+--- 场景一：CPU 飙高诊断 ---
+
+  [启动] 死循环线程 cpu-hog-thread
+  [执行] jps -l
+  [保存] → 05.AutoDiagnoseDemo_cpu_jps.txt
+  [执行] jstack 46612
+  [保存] → 05.AutoDiagnoseDemo_cpu_jstack.txt
+
+  [分析] RUNNABLE 线程：
+    → "cpu-hog-thread" #20 daemon prio=5 os_prio=0 tid=0x000002bf769eb800 nid=0xb4c4 runnable [0x000000ceae2fe000]
+    → "Service Thread" #19 daemon prio=9 os_prio=0 tid=0x000002bf74572800 nid=0x1b44 runnable [0x0000000000000000]
+    → "C1 CompilerThread11" #18 daemon prio=9 os_prio=2 tid=0x000002bf74469000 nid=0x2424 waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread10" #17 daemon prio=9 os_prio=2 tid=0x000002bf7446c000 nid=0x6428 waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread9" #16 daemon prio=9 os_prio=2 tid=0x000002bf74469800 nid=0x5084 waiting on condition [0x0000000000000000]
+    → "C1 CompilerThread8" #15 daemon prio=9 os_prio=2 tid=0x000002bf74468000 nid=0x2a80 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread7" #14 daemon prio=9 os_prio=2 tid=0x000002bf7446b000 nid=0x86f8 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread6" #13 daemon prio=9 os_prio=2 tid=0x000002bf74467800 nid=0x4598 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread5" #12 daemon prio=9 os_prio=2 tid=0x000002bf7445e800 nid=0x7220 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread4" #11 daemon prio=9 os_prio=2 tid=0x000002bf7445c000 nid=0xb0b4 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread3" #10 daemon prio=9 os_prio=2 tid=0x000002bf74452800 nid=0x96c0 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread2" #9 daemon prio=9 os_prio=2 tid=0x000002bf74457000 nid=0xac88 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread1" #8 daemon prio=9 os_prio=2 tid=0x000002bf74452000 nid=0xb8b8 waiting on condition [0x0000000000000000]
+    → "C2 CompilerThread0" #7 daemon prio=9 os_prio=2 tid=0x000002bf74450000 nid=0x97a0 waiting on condition [0x0000000000000000]
+    → "Monitor Ctrl-Break" #6 daemon prio=5 os_prio=0 tid=0x000002bf7443e800 nid=0x3ec runnable [0x000000cead3fe000]
+    → "Attach Listener" #5 daemon prio=5 os_prio=2 tid=0x000002bf743c4000 nid=0x9c44 waiting on condition [0x0000000000000000]
+    → "Signal Dispatcher" #4 daemon prio=9 os_prio=2 tid=0x000002bf7436d800 nid=0x52cc runnable [0x0000000000000000]
+    → "main" #1 prio=5 os_prio=0 tid=0x000002bf5aa4f800 nid=0x9bac runnable [0x000000ceab9ff000]
+
+  [清理] 死循环线程已停止
+
+  ★ 诊断结论：
+    如果 cpu-hog-thread 处于 RUNNABLE 状态，说明它在持续消耗 CPU
+    jstack 堆栈可定位到具体死循环代码行
+
+--- 场景二：死锁诊断 ---
+
+  [启动] 两个交叉锁线程
+  [执行] jstack 46612
+  [保存] → 05.AutoDiagnoseDemo_deadlock_jstack.txt
+
+  ★ 诊断结论：
+    检测到死锁！jstack 输出中包含 "Found one Java-level deadlock"
+    修复方案：统一锁顺序 / 用 tryLock + 超时
+  [清理] 死锁线程已强制终止
+
+--- 场景三：线程池满诊断 ---
+
+  [启动] 线程池(5线程) + 5个慢任务
+  [执行] jstack 46612
+  [保存] → 05.AutoDiagnoseDemo_threadpool_jstack.txt
+
+  ★ 线程状态分布：
+    WAITING: 2 个
+    RUNNABLE: 17 个
+    BLOCKED: 2 个
+    TIMED_WAITING: 5 个
+
+  ★ 诊断结论：
+    大量线程处于 WAITING/TIMED_WAITING 状态
+    可能是线程池被慢任务占满，或下游服务超时
+    修复方案：加超时 / 加熔断 / 线程池隔离
+
+========================================
+  所有诊断完成！
+  请查看 w01-jvm/src/main/java/com/kungfu/jvm/d3_tuning/docs 目录下的诊断文件
+========================================
+
+Process finished with exit code 0

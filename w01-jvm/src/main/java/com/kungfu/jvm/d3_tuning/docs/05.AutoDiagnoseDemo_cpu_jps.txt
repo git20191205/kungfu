@@ -1,0 +1,6 @@
+26756 org.jetbrains.jps.cmdline.Launcher
+11000 org.jetbrains.jps.cmdline.Launcher
+32984 org.jetbrains.jps.cmdline.Launcher
+41288 sun.tools.jps.Jps
+14492 com.intellij.idea.Main
+26732 com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo

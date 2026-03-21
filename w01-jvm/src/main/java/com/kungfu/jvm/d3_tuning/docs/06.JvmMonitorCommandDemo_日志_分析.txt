@@ -1,0 +1,156 @@
+JvmMonitorCommandDemo 日志分析
+================================
+
+运行环境：JDK 1.8.0_441, HotSpot 64-Bit Server VM, Debug 模式运行
+
+
+一、进程信息（对应 jps）
+========================
+
+  PID: 33040
+  JVM: Java HotSpot(TM) 64-Bit Server VM 25.441-b07
+  启动耗时: 94ms
+
+  JVM 启动参数分析：
+  - -agentlib:jdwp=...          → IDEA Debug 模式的远程调试 agent
+  - -javaagent:debugger-agent   → IDEA 调试器的字节码增强 agent
+  - -Dkotlinx.coroutines...     → Kotlin 协程调试相关（IDEA 默认加的）
+  - -Dfile.encoding=UTF-8       → 文件编码
+
+  注意：这些参数是 IDEA Debug 模式自动加的，线上不会有。
+  线上看到的参数通常是 -Xms/-Xmx/-XX:+UseG1GC 等 JVM 调优参数。
+
+
+二、内存信息（对应 jstat / jmap）
+==================================
+
+  堆内存（Heap）：
+    init:      1020.0 MB    → JVM 启动时申请的初始堆大小（-Xms 默认值）
+    used:      20.4 MB      → 当前实际使用的堆内存（刚启动，很少）
+    committed: 977.5 MB     → 已从 OS 申请到的内存（OS 已保证可用）
+    max:       14.2 GB      → 最大可用堆内存（-Xmx 默认值，约为物理内存的 1/4）
+    使用率:    0.1%          → used/max，刚启动几乎没用
+
+  非堆内存（Non-Heap）：
+    used:      6.9 MB       → 元空间(Metaspace) + 代码缓存(Code Cache)
+    committed: 8.1 MB
+
+  关键观察：
+  - init(1020MB) 和 max(14.2GB) 差距很大 → 没有设置 -Xms=-Xmx
+  - 线上最佳实践：-Xms 和 -Xmx 设为一样，避免堆动态扩缩带来的性能开销
+  - committed(977.5MB) ≈ init(1020MB) → JVM 启动时就申请了接近初始值的内存
+
+
+三、GC 信息（对应 jstat -gc）
+==============================
+
+  收集器组合：PS Scavenge + PS MarkSweep
+  → 即 Parallel Scavenge + Parallel Old（JDK 8 默认组合）
+
+  PS Scavenge（Young GC）：
+    收集次数: 0      → 刚启动，还没触发过 Young GC
+    收集耗时: 0 ms
+    管理区域: PS Eden Space + PS Survivor Space（年轻代）
+
+  PS MarkSweep（Full GC）：
+    收集次数: 0      → 没触发过 Full GC
+    收集耗时: 0 ms
+    管理区域: PS Eden Space + PS Survivor Space + PS Old Gen（整个堆）
+
+  如果在 60 秒的内存压力测试期间用 jstat -gc 观察：
+  - 每分配约 300MB 到 Eden 区满后会触发一次 Young GC（YGC +1）
+  - 30MB 的分配量太小，可能不会触发 GC（Eden 区有几百 MB）
+
+
+四、线程信息（对应 jstack）
+============================
+
+  总线程数: 6（用户线程 1 + 守护线程 5）
+  峰值线程数: 6
+  死锁检测: 无
+
+  线程列表分析：
+  ┌───────────────────────────────┬────────────────┬──────────────────────────┐
+  │ 线程名                        │ 状态            │ 说明                      │
+  ├───────────────────────────────┼────────────────┼──────────────────────────┤
+  │ main                          │ RUNNABLE       │ 主线程，正在执行 Demo 代码  │
+  │ Attach Listener               │ RUNNABLE       │ 支持 jmap/jstack 等工具    │
+  │ Signal Dispatcher             │ RUNNABLE       │ 处理 OS 信号               │
+  │ Finalizer                     │ WAITING        │ 等待执行 finalize() 方法   │
+  │ Reference Handler             │ WAITING        │ 处理引用队列               │
+  │ IntelliJ Suspend Helper       │ TIMED_WAITING  │ IDEA Debug 专属线程        │
+  │ JDWP Command Reader           │ RUNNABLE       │ Debug 协议命令读取         │
+  │ JDWP Event Helper Thread      │ RUNNABLE       │ Debug 协议事件处理         │
+  │ JDWP Transport Listener       │ RUNNABLE       │ Debug 协议传输监听         │
+  └───────────────────────────────┴────────────────┴──────────────────────────┘
+
+  注意：JDWP 和 IntelliJ 相关线程只在 Debug 模式下出现。
+  普通 Run 模式下会少这些线程，但多出 "Monitor Ctrl-Break" 线程。
+
+
+五、各内存池详情
+=================
+
+  非堆内存池：
+  ┌──────────────────────┬───────────┬───────────┬───────────────────────────────┐
+  │ 内存池                │ 已用       │ 最大      │ 说明                           │
+  ├──────────────────────┼───────────┼───────────┼───────────────────────────────┤
+  │ Code Cache           │ 3.0 MB    │ 240 MB    │ JIT 编译后的机器码缓存          │
+  │ Metaspace            │ 4.5 MB    │ 无限制     │ 类的元数据（JDK8 取代永久代）   │
+  │ Compressed Class Space│ 494.7 KB │ 1.0 GB    │ 压缩类指针空间（-XX:+UseCompressedClassPointers）│
+  └──────────────────────┴───────────┴───────────┴───────────────────────────────┘
+
+  堆内存池：
+  ┌──────────────────────┬───────────┬───────────┬───────────────────────────────┐
+  │ 内存池                │ 已用       │ 最大      │ 说明                           │
+  ├──────────────────────┼───────────┼───────────┼───────────────────────────────┤
+  │ PS Eden Space        │ 30.6 MB   │ 5.2 GB    │ 新对象分配区（年轻代 Eden 区）  │
+  │ PS Survivor Space    │ 0 B       │ 42.5 MB   │ 存活对象中转区（S0/S1 二选一）  │
+  │ PS Old Gen           │ 0 B       │ 10.6 GB   │ 长期存活对象（老年代）          │
+  └──────────────────────┴───────────┴───────────┴───────────────────────────────┘
+
+  关键观察：
+  - Eden 已用 30.6MB，Survivor 和 Old 都是 0 → 刚启动，对象都在 Eden
+  - Eden 最大 5.2GB → 很大，说明默认堆很大（没设 -Xmx）
+  - Metaspace 无限制 → JDK 8 默认不限制元空间，线上要加 -XX:MaxMetaspaceSize
+
+
+六、内存压力测试阶段
+=====================
+
+  共分配了 30 MB（每 2 秒 1MB，持续 60 秒）。
+  30MB 相对于 Eden 区的 5.2GB 来说非常小（不到 0.6%），
+  所以整个过程大概率没有触发任何 GC。
+
+  如果想看到 GC 触发，可以：
+  - 加 -Xmx64m 限制堆大小
+  - 或者增大分配量（如每次 10MB，分配 100 次）
+
+
+七、MXBean vs 命令行工具对照
+==============================
+
+  ┌───────────────────────────────┬──────────────────────────┐
+  │ MXBean API                    │ 命令行工具                │
+  ├───────────────────────────────┼──────────────────────────┤
+  │ RuntimeMXBean                 │ jps / jinfo              │
+  │ MemoryMXBean                  │ jstat -gc / jmap -heap   │
+  │ GarbageCollectorMXBean        │ jstat -gc                │
+  │ ThreadMXBean                  │ jstack                   │
+  │ MemoryPoolMXBean              │ jstat -gc (各区详情)      │
+  └───────────────────────────────┴──────────────────────────┘
+
+  MXBean 的优势：代码中直接调用，适合监控系统采集指标
+  命令行的优势：临时排查，不需要改代码，直接登服务器操作
+
+
+
+/*
+*
+  几个关键发现：
+
+  1. 默认堆很大（max 14.2GB），没设 -Xms/-Xmx，线上应该设为一样避免动态扩缩
+  2. GC 收集器是 JDK 8 默认的 Parallel Scavenge + Parallel Old，30MB 分配量太小没触发 GC
+  3. Debug 模式多了 JDWP 和 IntelliJ 相关线程，线上不会有
+  4. Metaspace 无限制，线上要加 -XX:MaxMetaspaceSize 防止元空间 OOM
+* */

@@ -1,0 +1,20 @@
+
+❯ 分析ThreadTroubleshootingDemo 日志：d3_tuning/docs/04.ThreadTroubleshootingDemo_3_日志.txt
+
+● 这个日志运行的是场景三：线程池打满。
+
+  关键信息：
+
+  - 线程池 core=3, max=3, queue=5，提交了 8 个慢任务（每个 15 秒）
+  - 3 个线程立即执行（Task-1/2/3），5 个在队列等待
+
+  线程状态：
+  - biz-worker-25 → TIMED_WAITING（在 sleep 中）
+  - biz-worker-24 → TIMED_WAITING
+  - biz-worker-23 → TIMED_WAITING
+
+  3 个工作线程全部处于 TIMED_WAITING，说明都卡在 Thread.sleep(15000) 模拟的下游超时上。线程池已满，队列中还有 5 个任务排队。
+
+  15 秒后： Task-1/2/3 完成，Task-4/5/6 才开始执行。剩余 Task-7/8 由 CallerRunsPolicy 在主线程执行。
+
+  诊断结论： 典型的线程池被慢任务占满场景。线上遇到这种情况，jstack 会看到大量业务线程卡在 SocketInputStream.read 等 I/O 调用上，而不是 Thread.sleep。

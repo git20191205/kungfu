@@ -1,0 +1,80 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=52862 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.jvm.d3_tuning.ThreadTroubleshootingDemo
+========================================
+  线程问题排查实战
+========================================
+
+  当前进程 PID: 34700
+  请在另一个终端执行: jstack 34700
+
+--- 场景一：CPU 飙高（死循环）---
+
+  启动一个死循环线程，模拟 CPU 100%
+  排查步骤：
+  1. top → 找到 CPU 高的 Java 进程 PID
+  2. top -Hp <PID> → 找到 CPU 高的线程 TID
+  3. printf '%x' <TID> → 转 16 进制 (如 15521 → 0x3ca1)
+  4. jstack <PID> | grep 0x3ca1 -A 30
+  5. → 看到线程堆栈，定位到具体代码行！
+
+  [CPU-HOG] 线程开始死循环...
+  等待 30 秒（期间用 jstack 观察）...
+  jstack 输出中找 "cpu-hog-thread" → 状态是 RUNNABLE
+  jstack 输出中找 "normal-worker-thread" → 状态是 TIMED_WAITING
+
+  当前线程状态：
+    [normal-worker-thread] → TIMED_WAITING
+    [cpu-hog-thread] → RUNNABLE
+  → CPU 高的线程一定是 RUNNABLE 状态
+
+  [CPU-HOG] 循环结束，共执行 13152728383 次
+  ★ jstack 示例输出（关键部分）：
+  ┌─────────────────────────────────────────────────────────┐
+  │ "cpu-hog-thread" #12 daemon prio=5 os_prio=0           │
+  │    java.lang.Thread.State: RUNNABLE     ← CPU 高的线程  │
+  │    at ...ThreadTroubleshootingDemo.lambda$cpuSpike$0    │
+  │       (ThreadTroubleshootingDemo.java:XX)  ← 定位到代码行│
+  └─────────────────────────────────────────────────────────┘
+
+========================================
+  线上排查速查表
+========================================
+
+  ★ CPU 飙高排查（面试必背）：
+  ┌───┬──────────────────────────────────────────┐
+  │ # │ 操作                                      │
+  ├───┼──────────────────────────────────────────┤
+  │ 1 │ top → 找 CPU 高的 Java 进程 PID           │
+  │ 2 │ top -Hp <PID> → 找 CPU 高的线程 TID       │
+  │ 3 │ printf '%x' <TID> → TID 转 16 进制        │
+  │ 4 │ jstack <PID> | grep <hex> -A 30          │
+  │ 5 │ → 看堆栈定位到具体代码行                    │
+  └───┴──────────────────────────────────────────┘
+
+  ★ 死锁排查：
+  ┌───┬──────────────────────────────────────────┐
+  │ # │ 操作                                      │
+  ├───┼──────────────────────────────────────────┤
+  │ 1 │ jstack -l <PID>                           │
+  │ 2 │ 搜索 "Found one Java-level deadlock"      │
+  │ 3 │ 看哪两个线程互相持锁等待                    │
+  │ 4 │ 统一锁顺序 / 用 tryLock + 超时             │
+  └───┴──────────────────────────────────────────┘
+
+  ★ 线程池打满排查：
+  ┌───┬──────────────────────────────────────────┐
+  │ # │ 操作                                      │
+  ├───┼──────────────────────────────────────────┤
+  │ 1 │ jstack <PID> → 看线程状态分布              │
+  │ 2 │ 大量 WAITING/TIMED_WAITING → 被阻塞了     │
+  │ 3 │ 堆栈中找卡在哪里（通常是 I/O 调用）         │
+  │ 4 │ 加超时 / 加熔断 / 线程池隔离               │
+  └───┴──────────────────────────────────────────┘
+
+  ★ 线程 dump 分析技巧：
+    1. 连续 dump 3 次（间隔 5 秒）: jstack <PID> > dump1.txt
+    2. 对比 3 次 dump → 如果同一个线程一直在同一个位置 → 就是问题点
+    3. 统计各状态线程数: grep 'java.lang.Thread.State' dump.txt | sort | uniq -c
+    4. 在线分析工具: https://fastthread.io
+========================================
+
+Process finished with exit code 0

@@ -1,0 +1,97 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=64645 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.jvm.d3_tuning.ThreadTroubleshootingDemo
+========================================
+  线程问题排查实战
+========================================
+
+  当前进程 PID: 29632
+  请在另一个终端执行: jstack 29632
+
+--- 场景二：死锁 ---
+
+  线程1: 先锁A → 再锁B
+  线程2: 先锁B → 再锁A
+  → 互相等待，形成死锁！
+
+  [Thread-1] 持有 LOCK_A，等待获取 LOCK_B...
+  [Thread-2] 持有 LOCK_B，等待获取 LOCK_A...
+
+  ★ MXBean 检测到死锁！涉及 2 个线程：
+    线程: deadlock-thread-2
+    状态: BLOCKED
+    等待锁: java.lang.Object@1ff8b8f
+    锁持有者: deadlock-thread-1
+
+    线程: deadlock-thread-1
+    状态: BLOCKED
+    等待锁: java.lang.Object@22a71081
+    锁持有者: deadlock-thread-2
+
+  排查步骤：
+  1. jstack <PID>  或  jstack -l <PID>
+  2. 日志末尾会自动输出 "Found one Java-level deadlock"
+  3. 显示两个线程各持有什么锁，等待什么锁
+
+  ★ jstack 死锁输出示例：
+  ┌─────────────────────────────────────────────────────┐
+  │ Found one Java-level deadlock:                      │
+  │ =============================                      │
+  │ "deadlock-thread-1":                               │
+  │   waiting to lock monitor 0x... (LOCK_B)           │
+  │   which is held by "deadlock-thread-2"             │
+  │                                                     │
+  │ "deadlock-thread-2":                               │
+  │   waiting to lock monitor 0x... (LOCK_A)           │
+  │   which is held by "deadlock-thread-1"             │
+  └─────────────────────────────────────────────────────┘
+
+  修复方案：
+  1. 统一锁顺序: 所有线程按相同顺序获取锁（先A后B）
+  2. 用 tryLock() + 超时: 获取不到锁就放弃，避免无限等待
+  3. 减少锁粒度: 缩小 synchronized 的范围
+  4. 用 java.util.concurrent 的高级并发工具替代 synchronized
+
+  等待 20 秒（期间用 jstack 观察死锁信息）...
+
+========================================
+  线上排查速查表
+========================================
+
+  ★ CPU 飙高排查（面试必背）：
+  ┌───┬──────────────────────────────────────────┐
+  │ # │ 操作                                      │
+  ├───┼──────────────────────────────────────────┤
+  │ 1 │ top → 找 CPU 高的 Java 进程 PID           │
+  │ 2 │ top -Hp <PID> → 找 CPU 高的线程 TID       │
+  │ 3 │ printf '%x' <TID> → TID 转 16 进制        │
+  │ 4 │ jstack <PID> | grep <hex> -A 30          │
+  │ 5 │ → 看堆栈定位到具体代码行                    │
+  └───┴──────────────────────────────────────────┘
+
+  ★ 死锁排查：
+  ┌───┬──────────────────────────────────────────┐
+  │ # │ 操作                                      │
+  ├───┼──────────────────────────────────────────┤
+  │ 1 │ jstack -l <PID>                           │
+  │ 2 │ 搜索 "Found one Java-level deadlock"      │
+  │ 3 │ 看哪两个线程互相持锁等待                    │
+  │ 4 │ 统一锁顺序 / 用 tryLock + 超时             │
+  └───┴──────────────────────────────────────────┘
+
+  ★ 线程池打满排查：
+  ┌───┬──────────────────────────────────────────┐
+  │ # │ 操作                                      │
+  ├───┼──────────────────────────────────────────┤
+  │ 1 │ jstack <PID> → 看线程状态分布              │
+  │ 2 │ 大量 WAITING/TIMED_WAITING → 被阻塞了     │
+  │ 3 │ 堆栈中找卡在哪里（通常是 I/O 调用）         │
+  │ 4 │ 加超时 / 加熔断 / 线程池隔离               │
+  └───┴──────────────────────────────────────────┘
+
+  ★ 线程 dump 分析技巧：
+    1. 连续 dump 3 次（间隔 5 秒）: jstack <PID> > dump1.txt
+    2. 对比 3 次 dump → 如果同一个线程一直在同一个位置 → 就是问题点
+    3. 统计各状态线程数: grep 'java.lang.Thread.State' dump.txt | sort | uniq -c
+    4. 在线分析工具: https://fastthread.io
+========================================
+
+Process finished with exit code 0
