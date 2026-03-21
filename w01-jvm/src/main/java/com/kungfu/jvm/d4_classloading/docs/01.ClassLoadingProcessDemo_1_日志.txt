@@ -1,0 +1,143 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=60805 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo
+========================================
+  类加载过程演示
+========================================
+
+=== 一、类加载的五个阶段 ===
+
+  加载 → 验证 → 准备 → 解析 → 初始化
+  ─────────────────────────────────────
+  │      连接（Linking）阶段     │
+
+  ┌──────────┬──────────────────────────────────────────────┐
+  │ 阶段      │ 做了什么                                      │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ 1.加载    │ 通过类全名获取字节流 → 转为方法区的运行时数据    │
+  │ (Loading) │ → 生成 java.lang.Class 对象（堆中）             │
+  │          │ 字节流来源: .class文件/jar/网络/动态代理生成      │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ 2.验证    │ 确保字节码合法安全                              │
+  │ (Verify)  │ → 文件格式: 魔数 CAFEBABE、版本号               │
+  │          │ → 元数据: 是否有父类、是否继承 final 类          │
+  │          │ → 字节码: 指令是否合法、类型转换是否安全          │
+  │          │ → 符号引用: 引用的类/方法/字段是否存在            │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ 3.准备    │ 为 static 变量分配内存并设「零值」              │
+  │ (Prepare) │ → int → 0, boolean → false, 引用 → null       │
+  │          │ → static final 常量直接赋值（编译期确定的值）    │
+  │          │ ★ 注意: 只是零值，不是代码中写的初始值！         │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ 4.解析    │ 把符号引用替换为直接引用                        │
+  │ (Resolve) │ → 符号引用: 类全名字符串 "java/lang/Object"    │
+  │          │ → 直接引用: 内存中的指针/偏移量                  │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ 5.初始化  │ 执行 <clinit>() 方法                           │
+  │ (Init)   │ → 按代码顺序合并: static 变量赋值 + static {} 块 │
+  │          │ → JVM 保证 <clinit> 线程安全（加锁，只执行一次）  │
+  │          │ → 父类的 <clinit> 先于子类执行                   │
+  └──────────┴──────────────────────────────────────────────┘
+
+=== 二、准备阶段 vs 初始化阶段 ===
+
+  static int value = 123;
+    准备阶段 → value = 0（零值）
+    初始化阶段 → value = 123（代码赋值）
+    实际值: 123
+
+  static final int CONSTANT = 456;
+    准备阶段就赋值 456（编译期常量，存在常量池中）
+    实际值: 456
+
+  static final int RUNTIME_CONSTANT = new Random().nextInt(100);
+    准备阶段 → 0（零值，因为运行期才能确定）
+    初始化阶段 → 随机值
+    实际值: 48
+
+  ★ 结论:
+    static final + 编译期常量 → 准备阶段直接赋值（ConstantValue 属性）
+    其他 static 变量 → 准备阶段零值，初始化阶段才赋值
+
+=== 三、主动引用（会触发初始化）===
+
+  6 种触发类初始化的场景（主动引用）:
+  ┌───┬──────────────────────────────────────────────────┐
+  │ # │ 场景                                              │
+  ├───┼──────────────────────────────────────────────────┤
+  │ 1 │ new 对象、读写 static 字段、调用 static 方法       │
+  │ 2 │ 反射调用: Class.forName("xxx")                   │
+  │ 3 │ 初始化子类时，父类未初始化则先初始化父类            │
+  │ 4 │ 虚拟机启动时，初始化 main() 所在的类               │
+  │ 5 │ JDK 7+ MethodHandle 解析到的类                    │
+  │ 6 │ 接口定义 default 方法，实现类初始化时触发接口初始化  │
+  └───┴──────────────────────────────────────────────────┘
+
+  演示1: new 对象触发初始化
+    → InitDemo 的 <clinit> 被执行了！
+    InitDemo.value = 42
+
+  演示2: 子类初始化会先触发父类初始化
+    访问 SubInitDemo.subValue:
+    → SubInitDemo 的 <clinit> 被执行了！
+    (注意: 父类 clinit 先于子类执行)
+
+=== 四、被动引用（不会触发初始化）===
+
+  场景1: 通过子类访问父类 static 字段 → 只初始化父类，不初始化子类
+    PassiveChild.parentValue:
+    → PassiveParent 被初始化了！
+    (PassiveChild 没有被初始化！)
+
+  场景2: 数组定义 → 不触发元素类的初始化
+    new PassiveParent[10]:
+    (只创建了数组对象，PassiveParent 不会再次初始化)
+
+  场景3: 引用 static final 编译期常量 → 不触发类初始化
+    ConstantClass.GREETING:
+    值 = hello
+    (ConstantClass 没有被初始化！常量在编译期已内联到调用方)
+
+  ★ 被动引用三条总结:
+    1. 子类引用父类 static 字段 → 只初始化父类
+    2. 数组定义引用类 → 不初始化元素类
+    3. 引用编译期 static final 常量 → 不初始化该类
+
+=== 五、<clinit> 执行顺序（笔试经典）===
+
+  代码顺序:
+    static int a = 1;     // ① a=1
+    static { a=2; b=2; }  // ② a=2, b=2
+    static int b = 1;     // ③ b=1（覆盖了②中的 b=2）
+
+  结果: a=2, b=1
+  → a=2, b=1（按代码从上到下的顺序执行）
+
+  父子类 clinit 顺序:
+    ParentInit: A=1, static{A=2}  → A=2
+    ChildInit:  B=A                → B=2（父类先初始化）
+  结果: ChildInit.B = 2
+
+  ★ clinit 线程安全:
+    JVM 保证 <clinit>() 在多线程环境下被正确地加锁同步
+    → 这就是「静态内部类单例」线程安全的原因！
+    → 如果 clinit 中有耗时操作，可能导致其他线程阻塞
+
+========================================
+  面试速记
+========================================
+
+  Q: 类加载的过程？
+  A: 加载 → 验证 → 准备 → 解析 → 初始化
+     ("加眼准姐出" 谐音记忆)
+
+  Q: 准备阶段做了什么？
+  A: 给 static 变量分配内存设零值
+     static final 编译期常量直接赋值
+
+  Q: 什么时候触发类初始化？
+  A: new / 读写static字段 / 反射 / 子类触发父类 / main类
+
+  Q: <clinit>() 线程安全吗？
+  A: 安全。JVM 加锁保证只执行一次，这是静态内部类单例的原理
+========================================
+
+Process finished with exit code 0

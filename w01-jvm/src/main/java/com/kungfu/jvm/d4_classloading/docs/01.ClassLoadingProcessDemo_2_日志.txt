@@ -1,0 +1,706 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -verbose:class -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=50340 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo
+[Opened D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Object from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.Serializable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Comparable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.CharSequence from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.String from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.AnnotatedElement from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.GenericDeclaration from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.Type from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Class from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Cloneable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassLoader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.System from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Throwable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Error from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ThreadDeath from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Exception from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.RuntimeException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.SecurityManager from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.ProtectionDomain from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.AccessControlContext from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.SecureClassLoader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ReflectiveOperationException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassNotFoundException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.LinkageError from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.NoClassDefFoundError from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassCastException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ArrayStoreException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.VirtualMachineError from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.OutOfMemoryError from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.StackOverflowError from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.IllegalMonitorStateException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.Reference from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.SoftReference from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.WeakReference from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.FinalReference from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.PhantomReference from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.Finalizer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.ReferenceQueue from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Runnable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Thread from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Thread$UncaughtExceptionHandler from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ThreadGroup from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Map from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Dictionary from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Hashtable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Properties from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.AccessibleObject from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.Member from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.Field from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.Parameter from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.Executable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.Method from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.Constructor from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.MagicAccessorImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.MethodAccessor from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.MethodAccessorImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.ConstructorAccessor from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.ConstructorAccessorImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.DelegatingClassLoader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.ConstantPool from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.FieldAccessor from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.FieldAccessorImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.UnsafeFieldAccessorImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.UnsafeStaticFieldAccessorImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.annotation.Annotation from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.CallerSensitive from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MethodHandle from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.DirectMethodHandle from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MemberName from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MethodHandleNatives from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.LambdaForm from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MethodType from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.BootstrapMethodError from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.CallSite from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.ConstantCallSite from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MutableCallSite from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.VolatileCallSite from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Appendable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.AbstractStringBuilder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.StringBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.StringBuilder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Unsafe from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.AutoCloseable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.Closeable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.InputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.ByteArrayInputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.File from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.URLClassLoader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.URL from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.jar.Manifest from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Launcher from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Launcher$AppClassLoader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Launcher$ExtClassLoader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.CodeSource from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.StackTraceElement from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.Buffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Boolean from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Character from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Number from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Float from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Double from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Byte from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Short from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Integer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Long from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.NullPointerException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ArithmeticException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.ObjectStreamField from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Comparator from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.String$CaseInsensitiveComparator from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.Guard from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.Permission from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.BasicPermission from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.RuntimePermission from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.AccessController from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.ReflectPermission from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.PrivilegedAction from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.ReflectionFactory$GetReflectionFactoryAction from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.cert.Certificate from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Iterable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collection from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.List from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.RandomAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.AbstractCollection from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.AbstractList from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Vector from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Stack from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.ReflectionFactory from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.Reference$Lock from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.Reference$ReferenceHandler from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.InterruptedException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.ArrayList from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Set from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.AbstractSet from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections$EmptySet from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections$EmptyList from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.AbstractMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections$EmptyMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections$UnmodifiableCollection from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections$UnmodifiableList from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections$UnmodifiableRandomAccessList from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Cleaner from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.ReferenceQueue$Null from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.ReferenceQueue$Lock from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.JavaLangRefAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.Reference$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.SharedSecrets from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.IncompatibleClassChangeError from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.NoSuchMethodError from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.Reflection from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.HashMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Map$Entry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.HashMap$Node from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.VM from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Hashtable$Entry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Math from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ref.Finalizer$FinalizerThread from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.charset.Charset from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.charset.spi.CharsetProvider from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.FastCharsetProvider from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.StandardCharsets from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.util.PreHashedMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.StandardCharsets$Aliases from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.StandardCharsets$Classes from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.StandardCharsets$Cache from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ThreadLocal from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.atomic.AtomicInteger from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Class$3 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Class$ReflectionData from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Class$Atomic from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.generics.repository.AbstractRepository from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.generics.repository.GenericDeclRepository from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.generics.repository.ClassRepository from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Class$AnnotationData from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.annotation.AnnotationType from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.WeakHashMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassValue$ClassValueMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.Modifier from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.LangReflectAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.ReflectAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Arrays from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.charset.Charset$ExtendedProviderHolder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.charset.Charset$ExtendedProviderHolder$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Opened D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar]
+[Loaded sun.nio.cs.AbstractCharsetProvider from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.ext.ExtendedCharsets from D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar]
+[Loaded java.lang.Class$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.ReflectionFactory$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.NativeConstructorAccessorImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.DelegatingConstructorAccessorImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.SortedMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.NavigableMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.TreeMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.ASCIICaseInsensitiveComparator from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.TreeMap$Entry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.HistoricallyNamedCharset from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.ext.GBK from D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar]
+[Loaded java.lang.StringCoding from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ThreadLocal$ThreadLocalMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ThreadLocal$ThreadLocalMap$Entry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded jdk.internal.misc.TerminatingThreadLocal from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.StringCoding$StringDecoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.ext.DoubleByte from D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar]
+[Loaded sun.nio.cs.ext.DelegatableDecoder from D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar]
+[Loaded sun.nio.cs.ArrayDecoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.charset.CharsetDecoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.ext.DoubleByte$Decoder from D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar]
+[Loaded java.nio.charset.CodingErrorAction from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Hashtable$EntrySet from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections$SynchronizedCollection from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections$SynchronizedSet from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Objects from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Enumeration from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Iterator from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Hashtable$Enumerator from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Runtime from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Version from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FileInputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FileDescriptor from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.JavaIOFileDescriptorAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FileDescriptor$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.Flushable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.OutputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FileOutputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FilterInputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.BufferedInputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.atomic.AtomicReferenceFieldUpdater from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.atomic.AtomicReferenceFieldUpdater$AtomicReferenceFieldUpdaterImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.PrivilegedExceptionAction from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.atomic.AtomicReferenceFieldUpdater$AtomicReferenceFieldUpdaterImpl$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.misc.ReflectUtil from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FilterOutputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.PrintStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.BufferedOutputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.Writer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.OutputStreamWriter from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.StreamEncoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.security.action.GetPropertyAction from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.Unicode from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.UTF_8 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.ArrayEncoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.charset.CharsetEncoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.UTF_8$Encoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.ByteBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.HeapByteBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.Bits from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.ByteOrder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.atomic.AtomicLong from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.JavaNioAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.Bits$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.BufferedWriter from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.DefaultFileSystem from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FileSystem from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.WinNTFileSystem from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.ExpiringCache from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.LinkedHashMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.ExpiringCache$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Enum from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.File$PathStatus from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.file.Watchable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.file.Path from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.StringCoding$StringEncoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.ext.DoubleByte$Encoder from D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar]
+[Loaded java.lang.Readable from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.CharBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.HeapCharBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.charset.CoderResult from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.charset.CoderResult$Cache from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.charset.CoderResult$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.charset.CoderResult$2 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassLoader$3 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassLoader$NativeLibrary from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassLoaderHelper from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.ExpiringCache$Entry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.LinkedHashMap$Entry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Terminator from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.SignalHandler from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Terminator$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Signal from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.NativeSignalHandler from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Integer$IntegerCache from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.OSEnvironment from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.io.Win32ErrorMode from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.JavaLangAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.System$2 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.IllegalArgumentException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Compiler from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Compiler$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.URLStreamHandlerFactory from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Launcher$Factory from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.security.util.Debug from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassLoader$ParallelLoaders from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.WeakHashMap$Entry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections$SetFromMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.WeakHashMap$KeySet from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.JavaNetAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.URLClassLoader$7 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Launcher$ExtClassLoader$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.StringTokenizer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.MetaIndex from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.Reader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.BufferedReader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.InputStreamReader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FileReader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.StreamDecoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.UTF_8$Decoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.Array from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Locale from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.util.locale.LocaleObjectCache from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Locale$Cache from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.ConcurrentMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.ConcurrentHashMap from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.locks.Lock from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.locks.ReentrantLock from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.ConcurrentHashMap$Segment from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.ConcurrentHashMap$Node from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.ConcurrentHashMap$CounterCell from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.ConcurrentHashMap$CollectionView from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.ConcurrentHashMap$KeySetView from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.ConcurrentHashMap$ValuesView from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.ConcurrentHashMap$EntrySetView from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.util.locale.BaseLocale from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.util.locale.BaseLocale$Cache from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.util.locale.BaseLocale$Key from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.util.locale.LocaleObjectCache$CacheEntry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Locale$LocaleKey from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.util.locale.LocaleUtils from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.CharacterData from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.CharacterDataLatin1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.HashMap$TreeNode from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FileInputStream$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.www.ParseUtil from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.BitSet from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.Parts from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.URLStreamHandler from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.www.protocol.file.Handler from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.util.IPAddressUtil from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.JavaSecurityAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.ProtectionDomain$JavaSecurityAccessImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.JavaSecurityProtectionDomainAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.ProtectionDomain$2 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.ProtectionDomain$Key from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.Principal from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.URLClassPath from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.www.protocol.jar.Handler from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Launcher$AppClassLoader$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.SystemClassLoaderAction from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.InternalError from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.instrument.Instrumentation from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.instrument.InstrumentationImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.instrument.TransformerManager from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.instrument.TransformerManager$TransformerInfo from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.URLClassLoader$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.util.URLUtil from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.URLClassPath$3 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.URLClassPath$Loader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.URLClassPath$JarLoader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.ZipConstants from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.ZipFile from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.JavaUtilZipFileAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.ZipFile$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.URLClassPath$JarLoader$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.FileURLMapper from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.jar.JarFile from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.JavaUtilJarAccess from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.jar.JavaUtilJarAccessImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.charset.StandardCharsets from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.US_ASCII from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.ISO_8859_1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.UTF_16BE from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.UTF_16LE from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.UTF_16 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Queue from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Deque from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.ArrayDeque from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.ZipCoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.PerfCounter from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Perf$GetPerfAction from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Perf from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.PerfCounter$CoreCounters from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.ch.DirectBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.MappedByteBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.DirectByteBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.LongBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.nio.DirectLongBufferU from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.JarIndex from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.ExtensionDependency from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.ZipEntry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.jar.JarEntry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.jar.JarFile$JarFileEntry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.ZipFile$ZipFileInputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.Inflater from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.ZStreamRef from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.InflaterInputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.ZipFile$ZipFileInflaterInputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.security.util.SignatureFileVerifier from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.security.action.GetIntegerAction from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.IOUtils from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.AbstractSequentialList from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.LinkedList from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.LinkedList$Node from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.HashSet from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.URLClassPath$FileLoader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.Resource from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.URLClassPath$JarLoader$2 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.jar.Attributes from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.jar.Manifest$FastInputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.ByteArrayOutputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.jar.Attributes$Name from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Package from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.ByteBuffered from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.Checksum from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.CRC32 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.PermissionCollection from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.Permissions from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.URLConnection from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.www.URLConnection from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.www.protocol.file.FileURLConnection from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.www.MessageHeader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FilePermission from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FilePermission$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FilePermissionCollection from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.AllPermission from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.UnresolvedPermission from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.BasicPermissionCollection from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded com.intellij.rt.execution.application.AppMainV2$Agent from file:/D:/IDE/idea/ideaIC-2024.3.4.1.win/lib/idea_rt.jar]
+[Loaded sun.instrument.InstrumentationImpl$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.NativeMethodAccessorImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.reflect.DelegatingMethodAccessorImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded com.intellij.rt.execution.application.AppMainV2 from file:/D:/IDE/idea/ideaIC-2024.3.4.1.win/lib/idea_rt.jar]
+[Loaded java.lang.NoSuchMethodException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.reflect.InvocationTargetException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.ConcurrentHashMap$ForwardingNode from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded com.intellij.rt.execution.application.AppMainV2$1 from file:/D:/IDE/idea/ideaIC-2024.3.4.1.win/lib/idea_rt.jar]
+[Loaded java.net.Socket from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.SocketAddress from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.InetSocketAddress from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.InetAddress from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MethodHandleImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.InetSocketAddress$InetSocketAddressHolder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MethodHandleImpl$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.security.action.GetBooleanAction from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.InetAddress$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.function.Function from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MethodHandleImpl$2 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MethodHandleImpl$3 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassValue from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MethodHandleImpl$4 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassValue$Entry from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassValue$Identity from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.ClassValue$Version from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MemberName$Factory from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MethodHandleStatics from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.invoke.MethodHandleStatics$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.PostVMInitHook from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.InetAddress$InetAddressHolder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.InetAddress$Cache from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.InetAddress$Cache$Type from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.InetAddressImplFactory from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Opened D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar]
+[Loaded java.net.InetAddressImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.Inet6AddressImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.spi.nameservice.NameService from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.InetAddress$2 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded javax.crypto.JarVerifier from D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar]
+[Loaded java.security.cert.CertificateFactory from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.Inet4Address from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.cert.X509Extension from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.cert.X509Certificate from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.security.validator.Validator from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded javax.crypto.CryptoPermissions from D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar]
+[Loaded java.net.SocksConsts from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.IOException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.zip.ZipException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.jar.JarException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.GeneralSecurityException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.NoSuchProviderException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.cert.CertificateException from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded javax.crypto.CryptoPolicyParser$ParsingException from D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar]
+[Loaded java.net.SocketOptions from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.SocketImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.AbstractPlainSocketImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.PlainSocketImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.SocksSocketImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.MessageDigestSpi from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.security.MessageDigest from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.PostVMInitHook$2 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.AbstractPlainSocketImpl$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded jdk.internal.util.EnvUtils from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.ExtendedSocketOptions from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.PostVMInitHook$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded jdk.net.ExtendedSocketOptions from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.SocketOption from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded jdk.net.ExtendedSocketOptions$ExtSocketOption from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded jdk.net.SocketFlow from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded jdk.net.ExtendedSocketOptions$PlatformSocketOptions from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded jdk.net.ExtendedSocketOptions$PlatformSocketOptions$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.usagetracker.UsageTrackerClient from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections$UnmodifiableSet from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.concurrent.atomic.AtomicBoolean from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded jdk.net.ExtendedSocketOptions$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.usagetracker.UsageTrackerClient$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Collections$UnmodifiableCollection$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.HashMap$KeySet from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.usagetracker.UsageTrackerClient$4 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.HashMap$HashIterator from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.usagetracker.UsageTrackerClient$2 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.HashMap$KeyIterator from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.usagetracker.UsageTrackerClient$3 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.StandardSocketOptions from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.StandardSocketOptions$StdSocketOption from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.NetworkInterface from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.PlainSocketImpl$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.FloatingDecimal from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.FloatingDecimal$BinaryToASCIIConverter from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.FloatingDecimal$ExceptionalBinaryToASCIIBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.FloatingDecimal$BinaryToASCIIBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.FloatingDecimal$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.FloatingDecimal$ASCIIToBinaryConverter from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.FloatingDecimal$PreparedASCIIToBinaryBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.FloatingDecimal$ASCIIToBinaryBuffer from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.DualStackPlainSocketImpl from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.Inet6Address from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.io.FileOutputStream$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.Inet6Address$Inet6AddressHolder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.launcher.LauncherHelper from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.SocksSocketImpl$3 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.ProxySelector from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.spi.DefaultProxySelector from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.spi.DefaultProxySelector$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.NetProperties from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.NetProperties$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.misc.URLClassPath$FileLoader$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.util.Properties$LineReader from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo from file:/D:/workspace/kungfu/out/production/kungfu/]
+[Loaded java.net.URI from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.launcher.LauncherHelper$FXHelper from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Class$MethodArray from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.URI$Parser from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Void from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.spi.DefaultProxySelector$NonProxyInfo from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.net.spi.DefaultProxySelector$3 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+========================================[Loaded java.net.Proxy from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+
+  类加载过程演示
+========================================
+
+=== 一、类加载的五个阶段 ===
+
+  加载 → 验证 → 准备 → 解析 → 初始化
+  ─────────────────────────────────────
+  │      连接（Linking）阶段     │[Loaded java.net.Proxy$Type from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+
+
+  ┌──────────┬──────────────────────────────────────────────┐
+  │ 阶段      │ 做了什么                                      │
+[Loaded java.util.ArrayList$Itr from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+  ├──────────┼──────────────────────────────────────────────┤
+  │ 1.加载    │ 通过类全名获取字节流 → 转为方法区的运行时数据    │
+  │ (Loading) │ → 生成 java.lang.Class 对象（堆中）             │
+  │          │ 字节流来源: .class文件/jar/网络/动态代理生成      │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ 2.验证    │ 确保字节码合法安全                              │
+[Loaded sun.net.NetHooks from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+  │ (Verify)  │ → 文件格式: 魔数 CAFEBABE、版本号               │
+  │          │ → 元数据: 是否有父类、是否继承 final 类          │
+  │          │ → 字节码: 指令是否合法、类型转换是否安全          │
+  │          │ → 符号引用: 引用的类/方法/字段是否存在            │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ 3.准备    │ 为 static 变量分配内存并设「零值」              │
+  │ (Prepare) │ → int → 0, boolean → false, 引用 → null       │
+  │          │ → static final 常量直接赋值（编译期确定的值）    │
+  │          │ ★ 注意: 只是零值，不是代码中写的初始值！         │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ 4.解析    │ 把符号引用替换为直接引用                        │
+  │ (Resolve) │ → 符号引用: 类全名字符串 "java/lang/Object"    │
+  │          │ → 直接引用: 内存中的指针/偏移量                  │
+  ├──────────┼──────────────────────────────────────────────┤
+  │ 5.初始化  │ 执行 <clinit>() 方法                           │
+  │ (Init)   │ → 按代码顺序合并: static 变量赋值 + static {} 块 │
+  │          │ → JVM 保证 <clinit> 线程安全（加锁，只执行一次）  │
+  │          │ → 父类的 <clinit> 先于子类执行                   │
+  └──────────┴──────────────────────────────────────────────┘
+
+=== 二、准备阶段 vs 初始化阶段 ===
+
+  static int value = 123;
+    准备阶段 → value = 0（零值）
+    初始化阶段 → value = 123（代码赋值）
+[Loaded java.net.Socket$2 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.net.SocketInputStream from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded sun.nio.cs.US_ASCII$Decoder from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo$PrepareDemo from file:/D:/workspace/kungfu/out/production/kungfu/]
+[Loaded java.util.Random from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+    实际值: 123
+
+  static final int CONSTANT = 456;
+    准备阶段就赋值 456（编译期常量，存在常量池中）
+    实际值: 456
+
+  static final int RUNTIME_CONSTANT = new Random().nextInt(100);
+    准备阶段 → 0（零值，因为运行期才能确定）
+    初始化阶段 → 随机值
+    实际值: 73
+
+  ★ 结论:
+    static final + 编译期常量 → 准备阶段直接赋值（ConstantValue 属性）
+    其他 static 变量 → 准备阶段零值，初始化阶段才赋值
+
+=== 三、主动引用（会触发初始化）===
+
+  6 种触发类初始化的场景（主动引用）:
+  ┌───┬──────────────────────────────────────────────────┐
+  │ # │ 场景                                              │
+  ├───┼──────────────────────────────────────────────────┤
+  │ 1 │ new 对象、读写 static 字段、调用 static 方法       │
+  │ 2 │ 反射调用: Class.forName("xxx")                   │
+  │ 3 │ 初始化子类时，父类未初始化则先初始化父类            │
+  │ 4 │ 虚拟机启动时，初始化 main() 所在的类               │
+  │ 5 │ JDK 7+ MethodHandle 解析到的类                    │
+  │ 6 │ 接口定义 default 方法，实现类初始化时触发接口初始化  │
+  └───┴──────────────────────────────────────────────────┘
+
+  演示1: new 对象触发初始化
+[Loaded com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo$InitDemo from file:/D:/workspace/kungfu/out/production/kungfu/]
+    → InitDemo 的 <clinit> 被执行了！
+    InitDemo.value = 42
+
+  演示2: 子类初始化会先触发父类初始化
+    访问 SubInitDemo.subValue:
+[Loaded com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo$SubInitDemo from file:/D:/workspace/kungfu/out/production/kungfu/]
+    → SubInitDemo 的 <clinit> 被执行了！
+    (注意: 父类 clinit 先于子类执行)
+
+=== 四、被动引用（不会触发初始化）===
+
+  场景1: 通过子类访问父类 static 字段 → 只初始化父类，不初始化子类
+    PassiveChild.parentValue:
+[Loaded com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo$PassiveParent from file:/D:/workspace/kungfu/out/production/kungfu/]
+[Loaded com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo$PassiveChild from file:/D:/workspace/kungfu/out/production/kungfu/]
+    → PassiveParent 被初始化了！
+    (PassiveChild 没有被初始化！)
+
+  场景2: 数组定义 → 不触发元素类的初始化
+    new PassiveParent[10]:
+    (只创建了数组对象，PassiveParent 不会再次初始化)
+
+  场景3: 引用 static final 编译期常量 → 不触发类初始化
+    ConstantClass.GREETING:
+    值 = hello
+    (ConstantClass 没有被初始化！常量在编译期已内联到调用方)
+
+  ★ 被动引用三条总结:
+    1. 子类引用父类 static 字段 → 只初始化父类
+    2. 数组定义引用类 → 不初始化元素类
+    3. 引用编译期 static final 常量 → 不初始化该类
+
+=== 五、<clinit> 执行顺序（笔试经典）===
+
+  代码顺序:
+    static int a = 1;     // ① a=1
+    static { a=2; b=2; }  // ② a=2, b=2
+    static int b = 1;     // ③ b=1（覆盖了②中的 b=2）
+
+[Loaded com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo$OrderDemo from file:/D:/workspace/kungfu/out/production/kungfu/]
+  结果: a=2, b=1
+  → a=2, b=1（按代码从上到下的顺序执行）
+
+  父子类 clinit 顺序:
+    ParentInit: A=1, static{A=2}  → A=2
+    ChildInit:  B=A                → B=2（父类先初始化）
+[Loaded com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo$ParentInit from file:/D:/workspace/kungfu/out/production/kungfu/]
+[Loaded com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo$ChildInit from file:/D:/workspace/kungfu/out/production/kungfu/]
+  结果: ChildInit.B = 2
+
+  ★ clinit 线程安全:
+    JVM 保证 <clinit>() 在多线程环境下被正确地加锁同步
+    → 这就是「静态内部类单例」线程安全的原因！
+    → 如果 clinit 中有耗时操作，可能导致其他线程阻塞
+
+========================================
+  面试速记
+========================================
+
+  Q: 类加载的过程？
+  A: 加载 → 验证 → 准备 → 解析 → 初始化
+     ("加眼准姐出" 谐音记忆)
+
+  Q: 准备阶段做了什么？
+  A: 给 static 变量分配内存设零值
+     static final 编译期常量直接赋值
+
+  Q: 什么时候触发类初始化？
+  A: new / 读写static字段 / 反射 / 子类触发父类 / main类
+
+  Q: <clinit>() 线程安全吗？
+  A: 安全。JVM 加锁保证只执行一次，这是静态内部类单例的原理
+========================================
+[Loaded jdk.internal.misc.TerminatingThreadLocal$1 from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Shutdown from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+[Loaded java.lang.Shutdown$Lock from D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar]
+
+Process finished with exit code 0

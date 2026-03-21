@@ -1,0 +1,207 @@
+BreakParentDelegationDemo 日志分析
+====================================
+
+运行环境：JDK 1.8.0_441, HotSpot 64-Bit Server VM, Run 模式
+VM 参数：无特殊参数
+
+
+一、SPI 机制验证（第二节）
+===========================
+
+  1. 线程上下文类加载器（TCCL）验证
+     → Thread.currentThread().getContextClassLoader()
+     → 返回 sun.misc.Launcher$AppClassLoader@22d8cfe0
+     → 证明 TCCL 默认就是 AppClassLoader
+
+     TCCL 的设置时机：
+     → JVM 启动时，在 Launcher 构造方法中：
+       Thread.currentThread().setContextClassLoader(appClassLoader)
+     → 子线程默认继承父线程的 TCCL
+     → 可以通过 Thread.setContextClassLoader() 手动修改
+
+  2. ServiceLoader 扫描结果
+     → 输出 "未发现任何 JDBC 驱动"
+     → 原因：classpath 中没有 MySQL/PostgreSQL 等驱动 jar
+     → 如果 classpath 中有 mysql-connector-java.jar，则会输出：
+       com.mysql.cj.jdbc.Driver (由 AppClassLoader 加载)
+
+  3. SPI 打破双亲委派的完整链路
+
+     正常双亲委派：
+       App 收到请求 → 委派 Ext → 委派 Bootstrap → 找到就加载
+       方向：子 → 父 → 父（向上委派）
+
+     SPI 打破双亲委派：
+       DriverManager（Bootstrap 加载）需要加载用户提供的 Driver 实现
+       → DriverManager.getConnection() 内部源码：
+         ServiceLoader<Driver> loadedDrivers = ServiceLoader.load(Driver.class);
+       → ServiceLoader.load() 内部：
+         ClassLoader cl = Thread.currentThread().getContextClassLoader();  // 拿到 AppClassLoader
+         return ServiceLoader.load(service, cl);  // 用 AppClassLoader 加载实现类
+       → 方向：Bootstrap（父）→ TCCL（子）（向下委派！）
+
+     ★ 为什么不直接 new 实现类？
+       因为 DriverManager 在 rt.jar 中，编译期看不到 classpath 的 MySQL 驱动
+       只能通过 SPI 服务发现机制，在运行时动态加载
+
+
+二、自定义 ClassLoader 分析（第三节）
+======================================
+
+  代码中的 CustomClassLoader 实现：
+
+  ┌────────────────────────────────────────────────────────────────┐
+  │ class CustomClassLoader extends ClassLoader {                 │
+  │   private String classPath;                                   │
+  │                                                               │
+  │   @Override                                                   │
+  │   protected Class<?> findClass(String name) {                 │
+  │     // 1. 从指定路径读取 .class 文件的字节码                     │
+  │     // 2. 调用 defineClass() 将字节码转为 Class 对象            │
+  │     return defineClass(name, classData, 0, classData.length); │
+  │   }                                                           │
+  │ }                                                              │
+  └────────────────────────────────────────────────────────────────┘
+
+  关键方法说明：
+
+  ┌────────────────────┬────────────────────────────────────────────────┐
+  │ 方法                │ 作用                                            │
+  ├────────────────────┼────────────────────────────────────────────────┤
+  │ findClass(name)    │ 自己的类查找逻辑（从指定目录读 .class 文件）      │
+  │                    │ 只在父加载器找不到时被调用（保持双亲委派）         │
+  ├────────────────────┼────────────────────────────────────────────────┤
+  │ defineClass(...)   │ 将 byte[] 转为 Class 对象（JVM 核心方法）        │
+  │                    │ 是 protected final 的，不能重写，只能调用         │
+  │                    │ 会触发类加载过程中的"验证"阶段                    │
+  ├────────────────────┼────────────────────────────────────────────────┤
+  │ loadClass(name)    │ 双亲委派的核心逻辑（本 Demo 没有重写）            │
+  │                    │ 重写它 = 打破双亲委派                            │
+  └────────────────────┴────────────────────────────────────────────────┘
+
+  类唯一性验证：
+    class1 == class2 : true
+    → 同一个 ClassLoader（AppClassLoader）加载同一个类 → 返回同一个 Class 对象
+    → 这是 findLoadedClass() 缓存机制的效果
+
+    如果用两个不同的 CustomClassLoader 加载同一个 .class 文件：
+    → class1 == class2 : false
+    → class1 instanceof 判断 class2 的实例 → false
+    → 这就是 Tomcat 类隔离的底层原理
+
+
+三、Tomcat 类加载器架构分析（第四节）
+======================================
+
+  Tomcat 的类加载器层次（从上到下）：
+
+  ┌─────────────────────┬──────────────────────────────────────────────┐
+  │ 加载器               │ 职责                                          │
+  ├─────────────────────┼──────────────────────────────────────────────┤
+  │ Bootstrap           │ JDK 核心类（rt.jar）                          │
+  │ Extension           │ JDK 扩展库（ext 目录）                        │
+  │ Application         │ Tomcat 启动类（bootstrap.jar, tomcat-juli.jar）│
+  │ Common ClassLoader  │ Tomcat 公共库（catalina.properties 配置）      │
+  │                     │ → 所有 WebApp 共享（如 servlet-api.jar）       │
+  │ WebApp1 ClassLoader │ App1 的 WEB-INF/classes + WEB-INF/lib        │
+  │ WebApp2 ClassLoader │ App2 的 WEB-INF/classes + WEB-INF/lib        │
+  └─────────────────────┴──────────────────────────────────────────────┘
+
+  WebAppClassLoader 的加载顺序（与标准双亲委派相反）：
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │ 1. 检查是否 java.*/javax.* → 是则强制走双亲委派（安全保护）      │
+  │ 2. 检查 findLoadedClass() 缓存                                 │
+  │ 3. 先从自己的 WEB-INF/classes 找                                │
+  │ 4. 再从自己的 WEB-INF/lib/*.jar 找                              │
+  │ 5. 找不到才委派给父加载器（Common → App → Ext → Bootstrap）     │
+  └─────────────────────────────────────────────────────────────────┘
+
+  为什么 Tomcat 要这样设计：
+
+  场景：一个 Tomcat 部署两个 Web 应用
+    App1: Spring 4.x → org.springframework.core.SpringVersion
+    App2: Spring 5.x → org.springframework.core.SpringVersion
+    → 同名类，不同版本，必须共存互不干扰！
+
+  如果用标准双亲委派：
+    → 先委派 Common → App1 和 App2 看到的是同一个 Spring 版本
+    → 无法实现版本隔离 → 类冲突！
+
+  Tomcat 的解决方案：
+    → 每个 WebApp 有独立的 WebAppClassLoader 实例
+    → 先从自己的 WEB-INF/lib 找 → App1 加载 Spring 4，App2 加载 Spring 5
+    → 两个 ClassLoader 实例加载的同名类 → JVM 认为是不同的类 → 隔离成功
+
+  ★ 但核心类仍然保护：
+    java.lang.String 等核心类强制走双亲委派
+    → 防止 Web 应用中的恶意类替换 JDK 核心类
+
+
+四、热部署原理（面试速记中提到）
+==================================
+
+  热部署的实现步骤：
+  1. 检测到 .class 文件变更
+  2. 创建一个新的 ClassLoader 实例
+  3. 用新的 ClassLoader 加载修改后的类
+  4. 旧的 ClassLoader 及其加载的所有 Class 对象变成不可达
+  5. GC 回收旧的 ClassLoader 和关联的 Class 对象
+
+  ★ 为什么必须丢弃整个 ClassLoader？
+    → JVM 不支持"卸载单个类"
+    → 类卸载的条件：加载该类的 ClassLoader 被 GC 回收
+    → 所以必须丢弃整个 ClassLoader，让 GC 回收它和它加载的所有类
+    → 然后创建新的 ClassLoader 重新加载
+
+  注意事项：
+  → 如果旧的 Class 对象被强引用持有（如 static 变量），则无法被 GC
+  → 可能导致 Metaspace/PermGen 内存泄漏
+  → 这也是为什么频繁热部署可能导致 OOM: Metaspace
+
+
+五、D4 类加载模块总结
+=======================
+
+  三个 Demo 形成完整的知识链：
+
+  ┌──────────────────────────────┬──────────────────────────────────────┐
+  │ Demo                         │ 核心知识                              │
+  ├──────────────────────────────┼──────────────────────────────────────┤
+  │ ClassLoadingProcessDemo      │ 五阶段：加载→验证→准备→解析→初始化     │
+  │                              │ 准备阶段零值 vs 初始化赋值             │
+  │                              │ 主动引用 vs 被动引用                   │
+  │                              │ <clinit> 执行顺序和线程安全            │
+  ├──────────────────────────────┼──────────────────────────────────────┤
+  │ ParentDelegationDemo         │ 三级加载器：Bootstrap→Ext→App         │
+  │                              │ 双亲委派流程（loadClass 源码）         │
+  │                              │ Class.forName vs loadClass           │
+  │                              │ 双亲委派的意义：安全+唯一+避免重复     │
+  ├──────────────────────────────┼──────────────────────────────────────┤
+  │ BreakParentDelegationDemo    │ SPI + TCCL（向下委派）                │
+  │                              │ 自定义 ClassLoader（findClass）       │
+  │                              │ Tomcat WebAppClassLoader（类隔离）    │
+  │                              │ 热部署原理（丢弃 ClassLoader + GC）   │
+  └──────────────────────────────┴──────────────────────────────────────┘
+
+  至此 D4 类加载机制模块全部完成，W01-JVM 四个模块（D1~D4）也已全部跑完。
+
+
+● 分析文档已写到 03.BreakParentDelegationDemo_日志_分析.txt，主要内容：
+
+  1. SPI 机制 — TCCL 默认是 AppClassLoader，完整链路：DriverManager(Bootstrap) → ServiceLoader.load() → TCCL(AppClassLoader) 向下委派加载驱动实现类。没发现驱动是因为 classpath 没有驱动 jar
+  2. 自定义 ClassLoader — findClass + defineClass 的分工；class1 == class2 为 true 是 findLoadedClass 缓存的效果
+  3. Tomcat 类加载器 — WebAppClassLoader 先自己找 WEB-INF，再委派父加载器（反双亲委派）；但 java./javax. 强制走双亲委派保护核心类
+  4. 热部署原理 — 丢弃整个 ClassLoader 让 GC 回收，创建新的重新加载；频繁热部署可能 OOM: Metaspace
+  5. D4 模块总结 — 三个 Demo 形成完整知识链
+
+  D4 类加载模块全部完成。W01-JVM 的四个模块（D1 内存模型、D2 GC、D3 调优、D4 类加载）已全部跑完并分析。
+
+
+  ❯ 一句话解释一下，什么是双亲委派，存在意义是什么，弊端是什么
+
+  ● 双亲委派：类加载时先让父加载器尝试加载，父加载器找不到才自己加载（子→父→父→...逐层向上委派）。
+
+    意义：保证核心类（如 java.lang.String）全局唯一且不被篡改——无论谁请求加载，最终都由 Bootstrap 加载 rt.jar 中的版本。
+
+    弊端：父加载器无法向下加载子加载器路径中的类——典型如 JDBC，DriverManager 在 rt.jar 中（Bootstrap 加载），但 MySQL 驱动在 classpath 中（App 加载），Bootstrap 看不到 classpath，只能靠 TCCL 打破委派方向来解决

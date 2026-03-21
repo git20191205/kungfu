@@ -1,0 +1,231 @@
+ClassLoadingProcessDemo 日志分析（-verbose:class 参数）
+========================================================
+
+运行环境：JDK 1.8.0_441, HotSpot 64-Bit Server VM, Run 模式
+VM 参数：-verbose:class（打印每个类的加载时机和来源）
+
+
+一、-verbose:class 参数说明
+============================
+
+  -verbose:class 让 JVM 在加载每个类时打印一行日志：
+    [Loaded 类全名 from 来源路径]
+
+  作用：
+  - 观察类的加载顺序（谁先加载、谁后加载）
+  - 确认类从哪个 jar/目录加载的（排查 classpath 冲突、类被覆盖等问题）
+  - 验证类加载机制的理论（被动引用是否真的不触发加载/初始化）
+
+
+二、JVM 启动阶段的类加载顺序（第 2~537 行）
+=============================================
+
+  JVM 启动时，在执行 main() 之前，就需要加载大量核心类。
+  按加载顺序可分为以下几个阶段：
+
+  阶段一：核心类型体系（第 3~38 行）
+  ─────────────────────────────────
+    Object → Serializable → Comparable → CharSequence → String
+    → Class → Cloneable → ClassLoader → System → Throwable
+    → 各种 Error/Exception → Reference 家族（Soft/Weak/Final/Phantom）
+
+    ★ Object 是第一个被加载的类（所有类的根）
+    ★ String 紧随其后（JVM 内部大量使用字符串）
+    ★ Reference 家族在启动早期就加载，因为 GC 需要它们
+
+  阶段二：线程相关（第 41~44 行）
+  ────────────────────────────────
+    Runnable → Thread → Thread$UncaughtExceptionHandler → ThreadGroup
+    → main 线程本身就是一个 Thread 对象
+
+  阶段三：反射与方法句柄（第 49~79 行）
+  ──────────────────────────────────────
+    reflect.Field/Method/Constructor → MagicAccessorImpl
+    → invoke.MethodHandle/MemberName/MethodType/CallSite
+    → Lambda 和方法引用的底层支撑
+
+  阶段四：I/O 与编码（第 80~270 行）
+  ──────────────────────────────────
+    StringBuffer/StringBuilder → Unsafe → InputStream/OutputStream
+    → FileInputStream/FileOutputStream → PrintStream → StreamEncoder
+    → Charset 家族（UTF-8/GBK/US-ASCII/ISO-8859-1）
+    → System.out/System.err 的底层实现
+
+    ★ GBK 被加载（第 200 行）因为 Windows 默认编码是 GBK
+    ★ UTF-8 被加载（第 243 行）因为 -Dfile.encoding=UTF-8
+
+  阶段五：类加载器体系（第 90~95、293~350 行）
+  ────────────────────────────────────────────
+    URLClassLoader → Launcher → Launcher$AppClassLoader → Launcher$ExtClassLoader
+    → URLClassPath → JarLoader → FileLoader
+
+    ★ 注意加载顺序：ExtClassLoader 的类定义先被加载，
+      但实际的类加载器实例创建顺序是 Bootstrap → Ext → App
+
+  阶段六：安全与网络（第 340~530 行）
+  ──────────────────────────────────
+    ProtectionDomain → CodeSource → Permission 家族
+    → Socket/InetAddress → ProxySelector
+    → IDEA 的 idea_rt.jar 中的 AppMainV2 类（IDEA 通过 javaagent 注入）
+
+    ★ IDEA 相关类（第 429、433、437 行）：
+      com.intellij.rt.execution.application.AppMainV2$Agent
+      com.intellij.rt.execution.application.AppMainV2
+      com.intellij.rt.execution.application.AppMainV2$1
+    这些是 IDEA 用来启动和监控 Java 进程的类
+
+
+三、应用类加载时机分析（关键观察）
+===================================
+
+  第 538 行：ClassLoadingProcessDemo 本身被加载
+    [Loaded com.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo
+     from file:/D:/workspace/kungfu/out/production/kungfu/]
+
+    → 加载来源是编译输出目录（不是 jar 包）
+    → 由 AppClassLoader 加载
+    → 在所有 JVM 核心类之后、main() 执行之前加载
+
+  第 596 行：PrepareDemo 被加载（第二节 testPrepareVsInit）
+    [Loaded ...ClassLoadingProcessDemo$PrepareDemo from .../out/production/kungfu/]
+    → 触发时机：首次访问 PrepareDemo.value（读 static 字段 = 主动引用）
+    → 紧接着 Random 也被加载（第 597 行），因为 RUNTIME_CONSTANT 需要它
+
+  第 628 行：InitDemo 被加载（第三节 演示1 new 对象）
+    [Loaded ...ClassLoadingProcessDemo$InitDemo from .../out/production/kungfu/]
+    → 触发时机：new InitDemo()
+    → 紧接输出 "InitDemo 的 <clinit> 被执行了！" → 确认加载后立即初始化
+
+  第 634 行：SubInitDemo 被加载（第三节 演示2 子类初始化）
+    [Loaded ...ClassLoadingProcessDemo$SubInitDemo from .../out/production/kungfu/]
+    → 触发时机：访问 SubInitDemo.subValue
+    → 注意：InitDemo 不会再次加载（已在演示1中加载并初始化）
+    → 输出 "SubInitDemo 的 <clinit> 被执行了！"（父类 clinit 已执行过）
+
+  第 642~643 行：PassiveParent 和 PassiveChild 都被加载（第四节 场景1）
+    [Loaded ...ClassLoadingProcessDemo$PassiveParent from .../out/production/kungfu/]
+    [Loaded ...ClassLoadingProcessDemo$PassiveChild from .../out/production/kungfu/]
+    → ★ 重要发现：PassiveChild 虽然被加载了，但没有被初始化！
+    → 证据：只输出了 "PassiveParent 被初始化了！"，没有 "PassiveChild 被初始化了！"
+    → 说明"加载"和"初始化"是两回事：
+      加载(Loading) = 把 .class 字节码读进内存
+      初始化(Initialization) = 执行 <clinit>() 方法
+    → PassiveChild 被加载是因为代码中引用了它的类名（字节码中有符号引用）
+    → 但它没有被初始化，因为 parentValue 是父类的字段（被动引用）
+
+  第 668 行：OrderDemo 被加载（第五节）
+    [Loaded ...ClassLoadingProcessDemo$OrderDemo from .../out/production/kungfu/]
+    → 首次访问 OrderDemo.a 时触发
+
+  第 675~676 行：ParentInit 和 ChildInit 被加载
+    [Loaded ...ClassLoadingProcessDemo$ParentInit from .../out/production/kungfu/]
+    [Loaded ...ClassLoadingProcessDemo$ChildInit from .../out/production/kungfu/]
+    → 父类先加载，子类后加载（符合规范）
+
+  ConstantClass 没有出现在 verbose 日志中！
+    → ★ 这是最有价值的观察
+    → ConstantClass.GREETING = "hello" 是编译期常量
+    → javac 在编译时已经把 "hello" 内联到 ClassLoadingProcessDemo 的常量池中
+    → 运行时根本不需要加载 ConstantClass 这个类
+    → 所以 -verbose:class 中看不到它
+    → 这就是被动引用第三条规则的底层原因
+
+
+四、加载(Loading) vs 初始化(Initialization) 的区别
+===================================================
+
+  -verbose:class 的输出帮我们区分了这两个阶段：
+
+  ┌──────────────────────┬───────────┬──────────────┬───────────────────────┐
+  │ 类                    │ 被加载？   │ 被初始化？    │ 原因                   │
+  ├──────────────────────┼───────────┼──────────────┼───────────────────────┤
+  │ PrepareDemo          │ ✓         │ ✓            │ 读 static 字段（主动）  │
+  │ InitDemo             │ ✓         │ ✓            │ new 对象（主动）        │
+  │ SubInitDemo          │ ✓         │ ✓            │ 读 static 字段（主动）  │
+  │ PassiveParent        │ ✓         │ ✓            │ 读 static 字段（主动）  │
+  │ PassiveChild         │ ✓ (加载)  │ ✗ (未初始化)  │ 被动引用，只加载不初始化 │
+  │ ConstantClass        │ ✗ (未加载) │ ✗            │ 常量内联，根本不加载     │
+  │ OrderDemo            │ ✓         │ ✓            │ 读 static 字段（主动）  │
+  │ ParentInit           │ ✓         │ ✓            │ 子类初始化触发          │
+  │ ChildInit            │ ✓         │ ✓            │ 读 static 字段（主动）  │
+  └──────────────────────┴───────────┴──────────────┴───────────────────────┘
+
+  ★ 关键结论：
+    1. 被加载 ≠ 被初始化。PassiveChild 被加载但未初始化。
+    2. 编译期常量引用连加载都不会触发（ConstantClass 完全没出现）。
+    3. 类的加载是"惰性"的，用到才加载。
+
+
+五、加载来源统计
+=================
+
+  本次运行中，类的加载来源分为 4 类：
+
+  ┌─────────────────────────────────────────────────────┬────────────┐
+  │ 来源                                                 │ 加载器      │
+  ├─────────────────────────────────────────────────────┼────────────┤
+  │ D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar            │ Bootstrap  │
+  │ D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar      │ Extension  │
+  │ D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar           │ Extension  │
+  │ file:/D:/workspace/kungfu/out/production/kungfu/    │ App        │
+  │ file:/D:/IDE/idea/.../lib/idea_rt.jar               │ App        │
+  └─────────────────────────────────────────────────────┴────────────┘
+
+  - rt.jar 占绝大多数（500+ 个类）→ Bootstrap ClassLoader 加载
+  - charsets.jar 加载了 GBK/DoubleByte 等编码类 → ExtClassLoader 加载
+  - jce.jar 加载了加密相关类（JarVerifier/CryptoPermissions）
+  - 应用类从 out/production/kungfu/ 加载 → AppClassLoader 加载
+  - IDEA 的 idea_rt.jar 也由 AppClassLoader 加载（在 classpath 中）
+
+
+六、-verbose:class 输出与业务输出交错
+======================================
+
+  注意日志中 [Loaded ...] 行和业务输出行是交错的，例如：
+
+  第 546 行：========================================
+             [Loaded java.net.Proxy from ...]
+  第 548 行：  类加载过程演示
+
+  这说明：
+  1. 类加载是"按需"发生的，代码执行到需要某个类时才加载
+  2. 类加载和业务代码是在同一个线程（main）中串行执行的
+  3. 第一次使用某个类时有加载开销，后续使用不再加载（每个类只加载一次）
+
+
+七、与第一次运行（无 -verbose:class）的对比
+=============================================
+
+  ┌────────────────────────┬──────────────────────┬────────────────────────┐
+  │ 对比项                  │ 无 -verbose:class     │ 有 -verbose:class       │
+  ├────────────────────────┼──────────────────────┼────────────────────────┤
+  │ 输出行数                │ 143 行               │ 707 行                  │
+  │ RUNTIME_CONSTANT 值    │ 48                   │ 73（随机值，每次不同）    │
+  │ 业务输出                │ 干净，无干扰          │ 与 [Loaded] 行交错       │
+  │ 可观察信息              │ 初始化时机            │ 加载时机 + 初始化时机     │
+  │ 能否区分加载/初始化      │ 不能                 │ 能（核心价值）            │
+  │ ConstantClass 加载情况  │ 只能推测未初始化      │ 确认连加载都没有          │
+  │ PassiveChild 加载情况   │ 只能看到未初始化      │ 确认被加载但未初始化      │
+  └────────────────────────┴──────────────────────┴────────────────────────┘
+
+  ★ -verbose:class 的核心价值：
+    让"加载"和"初始化"这两个概念从理论变成可观察的事实。
+
+
+
+---
+ 两份分析文档已写好：
+
+  01.ClassLoadingProcessDemo_1_日志_分析.txt（无特殊参数版）：
+  - 分析了 5 个章节的执行结果：准备阶段零值 vs 初始化赋值、主动引用、被动引用三条规则、<clinit> 执行顺序
+  - 详解了 RUNTIME_CONSTANT 两次运行值不同（48 vs 73）证明运行期确定
+
+  01.ClassLoadingProcessDemo_2_日志_分析.txt（-verbose:class 版）：
+  - 分析了 JVM 启动时 500+ 个核心类的加载顺序（Object → String → Thread → I/O → ClassLoader 体系）
+  - 最有价值的发现：
+    - PassiveChild 被加载但未初始化 → 证明"加载 ≠ 初始化"
+    - ConstantClass 连加载都没有 → 编译期常量内联后，运行时根本不需要该类
+  - 统计了类的来源：rt.jar(Bootstrap)、charsets.jar(Ext)、out/production(App)
+  - 对比了两次运行的差异：-verbose:class 的核心价值是让"加载"和"初始化"从理论变成可观察的事实
+
+  接下来继续 d4_classloading 的下一个 demo — ParentDelegationDemo。让我看看有哪些。

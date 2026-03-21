@@ -1,0 +1,132 @@
+ClassLoadingProcessDemo 日志分析（无特殊 VM 参数）
+===================================================
+
+运行环境：JDK 1.8.0_441, HotSpot 64-Bit Server VM, Run 模式
+VM 参数：无特殊参数（默认 classpath + IDEA javaagent）
+
+
+一、整体执行流程
+=================
+
+  程序按 5 个章节顺序执行，每个章节演示类加载的一个知识点：
+  1. showLoadingProcess()    → 打印类加载五阶段的知识表格（纯输出，无类加载动作）
+  2. testPrepareVsInit()     → 演示准备阶段零值 vs 初始化阶段赋值
+  3. testActiveReference()   → 演示主动引用触发类初始化
+  4. testPassiveReference()  → 演示被动引用不触发类初始化
+  5. testClinitOrder()       → 演示 <clinit> 执行顺序
+
+
+二、准备阶段 vs 初始化阶段（第二节）
+======================================
+
+  三个变量的表现：
+
+  ┌──────────────────────────────┬───────────┬───────────┬────────┐
+  │ 变量                          │ 准备阶段   │ 初始化阶段 │ 实际值  │
+  ├──────────────────────────────┼───────────┼───────────┼────────┤
+  │ static int value = 123       │ 0（零值）  │ 123       │ 123    │
+  │ static final int CONSTANT=456│ 456       │ ——        │ 456    │
+  │ static final int RUNTIME_C.. │ 0（零值）  │ 随机值     │ 48     │
+  └──────────────────────────────┴───────────┴───────────┴────────┘
+
+  关键结论：
+  - static final + 编译期常量（字面量）→ 准备阶段直接赋值
+    底层机制：javac 编译时给字段加 ConstantValue 属性，JVM 准备阶段读取此属性直接赋值
+  - static final + 运行期值（new Random().nextInt()）→ 和普通 static 一样，初始化阶段赋值
+  - 普通 static 变量 → 准备阶段零值，初始化阶段执行 <clinit> 赋值
+
+  注意：两次运行 RUNTIME_CONSTANT 值不同（第一次 48，第二次 73），证明它确实是运行期确定的。
+
+
+三、主动引用（第三节）
+=======================
+
+  演示了 2 种触发类初始化的场景：
+
+  演示1：new 对象触发初始化
+    → new InitDemo() 触发了 InitDemo 的 <clinit>
+    → 输出 "InitDemo 的 <clinit> 被执行了！"
+    → InitDemo.value = 42（在 <clinit> 中被赋值）
+
+  演示2：子类初始化触发父类初始化
+    → 访问 SubInitDemo.subValue（读 static 字段 = 主动引用）
+    → 因为 SubInitDemo 继承 InitDemo，InitDemo 已在演示1中初始化过
+    → 所以只输出 "SubInitDemo 的 <clinit> 被执行了！"
+    → 注意：父类 <clinit> 先于子类执行（但此处父类已初始化，不会重复）
+
+
+四、被动引用（第四节）
+=======================
+
+  演示了 3 种不触发类初始化的场景：
+
+  场景1：通过子类访问父类 static 字段
+    → PassiveChild.parentValue 实际访问的是 PassiveParent 的字段
+    → 只触发了 PassiveParent 的初始化（输出 "PassiveParent 被初始化了！"）
+    → PassiveChild 没有被初始化（没有输出 "PassiveChild 被初始化了！"）
+    → 原理：对于 static 字段，只有直接定义该字段的类才会被初始化
+
+  场景2：数组定义
+    → new PassiveParent[10] 不触发 PassiveParent 的初始化
+    → 实际创建的是 [Lcom.kungfu.jvm.d4_classloading.ClassLoadingProcessDemo$PassiveParent 数组类
+    → PassiveParent 已在场景1中初始化，这里验证的是"不会再次触发"
+    → 本质：数组类型由 JVM 直接生成，不走用户类加载
+
+  场景3：引用编译期常量
+    → ConstantClass.GREETING = "hello"（static final String 字面量）
+    → ConstantClass 没有被初始化（没有输出 "ConstantClass 被初始化了！"）
+    → 原理：编译期常量在 javac 编译时已内联到调用方的常量池中
+    → 运行时根本不需要访问 ConstantClass，所以不触发其初始化
+
+  ★ 被动引用三条规则：
+    1. 子类引用父类 static 字段 → 只初始化父类
+    2. 数组定义引用类 → 不初始化元素类
+    3. 引用编译期 static final 常量 → 不初始化该类
+
+
+五、<clinit> 执行顺序（第五节）
+================================
+
+  经典笔试题：OrderDemo
+
+  代码：
+    static int a = 1;          // ① a = 1
+    static { a = 2; b = 2; }   // ② a = 2, b = 2
+    static int b = 1;          // ③ b = 1（覆盖 ②）
+
+  结果：a = 2, b = 1
+
+  分析：
+  - <clinit> 方法按代码从上到下的顺序合并所有 static 变量赋值和 static {} 块
+  - ① a = 1 → ② a = 2, b = 2 → ③ b = 1
+  - 最终 a = 2（被 ② 覆盖），b = 1（被 ③ 覆盖）
+  - 注意：static {} 中可以给后面声明的变量赋值（b 在准备阶段已分配内存），但不能读取
+
+  父子类 clinit 顺序：ChildInit.B
+
+  代码：
+    ParentInit: static int A = 1; static { A = 2; }  → A = 2
+    ChildInit:  static int B = A;                      → B = 2
+
+  结果：ChildInit.B = 2
+
+  分析：
+  - JVM 保证父类 <clinit> 先于子类执行
+  - 所以 ChildInit 的 <clinit> 执行 B = A 时，ParentInit 已初始化完毕，A = 2
+  - 因此 B = 2
+
+
+六、面试速记
+=============
+
+  Q: 类加载的过程？
+  A: 加载 → 验证 → 准备 → 解析 → 初始化（"加眼准姐出"谐音记忆）
+
+  Q: 准备阶段做了什么？
+  A: 给 static 变量分配内存设零值；static final 编译期常量直接赋值
+
+  Q: 什么时候触发类初始化？
+  A: new / 读写 static 字段 / 反射 / 子类触发父类 / main 类 / MethodHandle
+
+  Q: <clinit>() 线程安全吗？
+  A: 安全。JVM 加锁保证只执行一次，这是静态内部类单例的原理

@@ -1,0 +1,144 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=62360 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.jvm.d4_classloading.BreakParentDelegationDemo
+========================================
+  打破双亲委派模型
+========================================
+
+=== 一、为什么要打破双亲委派？===
+
+  双亲委派的局限：父加载器无法访问子加载器加载的类
+  → 但有时候核心类需要调用用户代码（如 JDBC、JNDI）
+
+  三大经典场景:
+  ┌───┬────────────┬────────────────────────────────────────┐
+  │ # │ 场景        │ 原因                                    │
+  ├───┼────────────┼────────────────────────────────────────┤
+  │ 1 │ SPI 机制    │ Bootstrap 加载的接口需要调用厂商实现       │
+  │   │ (JDBC等)    │ → 用线程上下文类加载器(TCCL)向下委派       │
+  ├───┼────────────┼────────────────────────────────────────┤
+  │ 2 │ Tomcat      │ 不同 Web 应用需要加载不同版本的同名类      │
+  │   │             │ → 每个 WebApp 有独立的 ClassLoader         │
+  │   │             │ → 优先加载自己 WEB-INF/lib，再委派父加载器 │
+  ├───┼────────────┼────────────────────────────────────────┤
+  │ 3 │ 热部署      │ 需要在不重启 JVM 的情况下替换类            │
+  │   │ (OSGi等)    │ → 丢弃旧的 ClassLoader，创建新的加载新类   │
+  └───┴────────────┴────────────────────────────────────────┘
+
+=== 二、SPI 机制 — 线程上下文类加载器 ===
+
+  问题：JDBC 接口 java.sql.Driver 在 rt.jar 中（Bootstrap 加载）
+        MySQL 实现 com.mysql.jdbc.Driver 在 classpath 中（App 加载）
+        Bootstrap 加载器看不到 classpath → 无法加载 MySQL 驱动！
+
+  解决：线程上下文类加载器（Thread Context ClassLoader / TCCL）
+  ┌────────────────────────────────────────────────────────┐
+  │ Bootstrap 加载 DriverManager                           │
+  │   ↓                                                    │
+  │ DriverManager.getConnection() 内部:                    │
+  │   ClassLoader cl = Thread.currentThread()              │
+  │                         .getContextClassLoader();       │
+  │   → TCCL 默认是 AppClassLoader                        │
+  │   → 用 TCCL 加载 MySQL 驱动（向下委派！反双亲委派！）    │
+  │   ServiceLoader.load(Driver.class, cl)                 │
+  └────────────────────────────────────────────────────────┘
+
+  当前线程上下文类加载器:
+    sun.misc.Launcher$AppClassLoader@22d8cfe0
+  → 默认就是 AppClassLoader
+
+  ServiceLoader 加载 JDBC 驱动:
+    ServiceLoader.load(Driver.class) 会读取:
+    META-INF/services/java.sql.Driver 文件
+    → 里面写着实现类的全限定名（如 com.mysql.cj.jdbc.Driver）
+    → ServiceLoader 用 TCCL 去加载这些实现类
+
+  当前 JVM 中通过 SPI 发现的 JDBC 驱动:
+    (未发现任何 JDBC 驱动，classpath 中没有数据库驱动 jar)
+
+  ★ SPI 打破双亲委派的本质:
+    正常: 子→父→父→... （向上委派）
+    SPI:  Bootstrap 用 TCCL（AppClassLoader）加载（向下委派）
+
+=== 三、自定义 ClassLoader ===
+
+  两种自定义方式:
+  ┌─────────────────┬──────────────────────────────────────┐
+  │ 方式             │ 说明                                  │
+  ├─────────────────┼──────────────────────────────────────┤
+  │ 重写 findClass() │ 推荐！保持双亲委派                     │
+  │                 │ 父加载器找不到才调用你的 findClass       │
+  ├─────────────────┼──────────────────────────────────────┤
+  │ 重写 loadClass() │ 打破双亲委派！                         │
+  │                 │ 可以改变委派逻辑（先自己加载再委派父类） │
+  └─────────────────┴──────────────────────────────────────┘
+
+  ★ 关键概念：类的唯一性 = 类全名 + ClassLoader
+    同一个 .class 文件，被两个不同的 ClassLoader 加载
+    → JVM 认为是两个不同的类！
+    → instanceof 判断为 false
+    → 两个类的 static 变量互不影响
+
+  验证: 同一个 ClassLoader 加载同一个类 → 同一个 Class 对象
+    class1 == class2 : true (同一个 ClassLoader)
+
+=== 四、Tomcat 类加载器（面试高频）===
+
+  Tomcat 为什么要打破双亲委派？
+  → 一个 Tomcat 部署多个 Web 应用
+  → App1 用 Spring 4，App2 用 Spring 5
+  → 同名类 org.springframework.xxx 必须互相隔离！
+
+  Tomcat 类加载器层次:
+  ┌─────────────────────────────────────────────┐
+  │            Bootstrap ClassLoader            │
+  │            ↓                                │
+  │         Extension ClassLoader               │
+  │            ↓                                │
+  │        Application ClassLoader              │
+  │            ↓                                │
+  │ ┌──────────────────────────────┐            │
+  │ │     Common ClassLoader       │ Tomcat公共库│
+  │ │     (catalina.properties)    │            │
+  │ └──────────┬───────────────────┘            │
+  │     ┌──────┴──────┐                        │
+  │     ↓             ↓                        │
+  │ ┌─────────┐  ┌─────────┐                   │
+  │ │ WebApp1 │  │ WebApp2 │  各自独立!         │
+  │ │Loader   │  │Loader   │  互不影响!         │
+  │ └─────────┘  └─────────┘                   │
+  └─────────────────────────────────────────────┘
+
+  WebAppClassLoader 的加载顺序（打破双亲委派）:
+  1. 先从自己的 WEB-INF/classes 找
+  2. 再从自己的 WEB-INF/lib/*.jar 找
+  3. 最后才委派给父加载器
+  → 和标准双亲委派相反！先自己找，找不到才向上委派
+
+  但 Tomcat 仍然保护核心类:
+  → java.* 和 javax.* 开头的类强制走双亲委派
+  → 防止 Web 应用替换 JDK 核心类
+
+========================================
+  面试速记
+========================================
+
+  Q: 怎么打破双亲委派？
+  A: 重写 loadClass() 方法，改变委派逻辑
+
+  Q: SPI 怎么打破的？
+  A: Bootstrap 加载的 DriverManager 用线程上下文类加载器(TCCL)
+     加载 classpath 中的驱动实现 → 向下委派
+
+  Q: Tomcat 怎么打破的？
+  A: WebAppClassLoader 优先加载 WEB-INF 下的类
+     每个 Web 应用独立的 ClassLoader 实现类隔离
+
+  Q: 热部署怎么实现？
+  A: 丢弃旧 ClassLoader（让它被 GC），创建新的 ClassLoader
+     重新加载修改后的类 → 新旧类由不同 ClassLoader 加载 → 互不影响
+
+  Q: 类的唯一性由什么决定？
+  A: 类全限定名 + 加载它的 ClassLoader
+     同一个 .class 被不同 ClassLoader 加载 → 不是同一个类
+========================================
+
+Process finished with exit code 0

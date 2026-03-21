@@ -1,0 +1,149 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=63714 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.jvm.d4_classloading.ParentDelegationDemo
+========================================
+  双亲委派模型演示
+========================================
+
+=== 一、三级类加载器 ===
+
+  ┌─────────────────────────────────────────────────┐
+  │          Bootstrap ClassLoader                  │
+  │          (启动类加载器 / 引导类加载器)             │
+  │          C++ 实现，Java 中看到的是 null           │
+  │          加载: rt.jar (java.lang.*, java.util.*) │
+  │                JAVA_HOME/lib 下的核心库           │
+  └──────────────────────┬──────────────────────────┘
+                         │ 父加载器
+  ┌──────────────────────▼──────────────────────────┐
+  │          Extension ClassLoader                  │
+  │          (扩展类加载器)                           │
+  │          sun.misc.Launcher$ExtClassLoader        │
+  │          加载: JAVA_HOME/lib/ext 下的扩展库       │
+  └──────────────────────┬──────────────────────────┘
+                         │ 父加载器
+  ┌──────────────────────▼──────────────────────────┐
+  │          Application ClassLoader                │
+  │          (应用类加载器 / 系统类加载器)             │
+  │          sun.misc.Launcher$AppClassLoader        │
+  │          加载: classpath 下的所有类               │
+  │          → 我们写的代码默认由它加载                │
+  └──────────────────────┬──────────────────────────┘
+                         │ 父加载器
+  ┌──────────────────────▼──────────────────────────┐
+  │          自定义 ClassLoader（可选）               │
+  │          继承 java.lang.ClassLoader              │
+  │          场景: Tomcat / OSGi / 热部署             │
+  └─────────────────────────────────────────────────┘
+
+=== 二、各种类由哪个加载器加载？===
+
+  String.class.getClassLoader()    = null
+  → null 表示 Bootstrap ClassLoader（C++ 实现，Java 中无法引用）
+
+  DNSNameService.getClassLoader()  = sun.misc.Launcher$ExtClassLoader@626b2d4a
+  → ExtClassLoader 加载的扩展库类
+
+  ParentDelegationDemo.getClassLoader() = sun.misc.Launcher$AppClassLoader@22d8cfe0
+  → AppClassLoader 加载我们自己写的类
+
+  加载器链（从子到父）:
+    sun.misc.Launcher$AppClassLoader@22d8cfe0
+    sun.misc.Launcher$ExtClassLoader@626b2d4a
+    null (Bootstrap ClassLoader)
+
+=== 三、双亲委派工作流程 ===
+
+  当 AppClassLoader 收到加载 "com.kungfu.Foo" 的请求：
+
+  ① AppClassLoader: 我先不加载，问问我爸
+     ↓ 委派给父加载器
+  ② ExtClassLoader: 我也先不加载，问问我爸
+     ↓ 委派给父加载器
+  ③ Bootstrap: 我是顶层了，在 rt.jar 里找...
+     → 没找到，返回给儿子
+  ④ ExtClassLoader: 爸没找到，我在 ext 目录找...
+     → 没找到，返回给儿子
+  ⑤ AppClassLoader: 爸和爷爷都没找到，我自己在 classpath 找...
+     → 找到了！加载 com.kungfu.Foo
+
+  核心代码（ClassLoader.loadClass 简化版）:
+  ┌────────────────────────────────────────────┐
+  │ protected Class<?> loadClass(String name)  │
+  │ {                                          │
+  │   // 1. 先检查是否已经加载过                 │
+  │   Class<?> c = findLoadedClass(name);      │
+  │   if (c == null) {                         │
+  │     // 2. 委派给父加载器                     │
+  │     if (parent != null) {                  │
+  │       c = parent.loadClass(name);          │
+  │     } else {                               │
+  │       c = findBootstrapClass(name);        │
+  │     }                                      │
+  │     // 3. 父加载器没找到，自己加载            │
+  │     if (c == null) {                       │
+  │       c = findClass(name); // 子类重写这个   │
+  │     }                                      │
+  │   }                                        │
+  │   return c;                                │
+  │ }                                          │
+  └────────────────────────────────────────────┘
+
+=== 四、Class.forName() vs ClassLoader.loadClass() ===
+
+  1. Class.forName() → 加载 + 初始化（执行 static {}）
+     调用 Class.forName("...ForNameDemo"):
+    → ForNameDemo 的 static {} 被执行了！
+
+  2. ClassLoader.loadClass() → 只加载，不初始化
+     (ForNameDemo 已经初始化过了，这里用说明代替)
+     ClassLoader.getSystemClassLoader().loadClass("Foo")
+     → 只执行加载阶段，static {} 不会执行
+
+  ┌──────────────────────┬──────────────┬──────────────┐
+  │                      │ Class.forName│ loadClass()  │
+  ├──────────────────────┼──────────────┼──────────────┤
+  │ 加载类                │ ✓            │ ✓            │
+  │ 执行 static {}       │ ✓ (默认)     │ ✗            │
+  │ 典型使用场景          │ JDBC驱动注册  │ Spring懒加载  │
+  └──────────────────────┴──────────────┴──────────────┘
+
+  ★ JDBC 经典面试题:
+    Class.forName("com.mysql.jdbc.Driver") 为什么能注册驱动？
+    → Driver 类的 static {} 中调用了 DriverManager.registerDriver()
+    → Class.forName() 触发了初始化 → static {} 执行 → 驱动注册
+
+=== 五、为什么需要双亲委派？===
+
+  1. 安全性：防止核心类被篡改
+     假设你写了一个 java.lang.String 类
+     → 双亲委派: 请求先到 Bootstrap → 发现 rt.jar 里有 → 用核心库的
+     → 你的「假 String」永远不会被加载
+     → 防止恶意代码替换核心类（沙箱安全机制）
+
+  2. 唯一性：保证核心类在 JVM 中只有一份
+     → 两个不同加载器加载同一个类 → JVM 认为是不同的类！
+     → instanceof 判断会失败
+     → 双亲委派保证核心类由 Bootstrap 统一加载，全局唯一
+
+  3. 避免重复加载：
+     → 先找父加载器已加载的类 → 避免同一个类被加载多次
+
+========================================
+  面试速记
+========================================
+
+  Q: 什么是双亲委派？
+  A: 收到类加载请求时，先委派父加载器处理
+     父加载器找不到时，自己才尝试加载
+     → 先父后己，逐层向上委派
+
+  Q: 三级类加载器？
+  A: Bootstrap(rt.jar) → Extension(ext) → Application(classpath)
+
+  Q: 为什么需要双亲委派？
+  A: 安全（防核心类被替换）+ 唯一性（同一个类只加载一次）
+
+  Q: Class.forName 和 loadClass 的区别？
+  A: forName 会初始化（执行static{}），loadClass 只加载不初始化
+========================================
+
+Process finished with exit code 0

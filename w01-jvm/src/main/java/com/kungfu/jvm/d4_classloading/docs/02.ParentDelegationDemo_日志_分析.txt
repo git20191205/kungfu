@@ -1,0 +1,170 @@
+ParentDelegationDemo 日志分析
+==============================
+
+运行环境：JDK 1.8.0_441, HotSpot 64-Bit Server VM, Run 模式
+VM 参数：无特殊参数
+
+
+一、三级类加载器验证（第二节）
+===============================
+
+  日志中实际验证了三个层级的类加载器：
+
+  ┌────────────────────────┬─────────────────────────────────────────────┬───────────┐
+  │ 类                      │ getClassLoader() 返回值                      │ 加载器     │
+  ├────────────────────────┼─────────────────────────────────────────────┼───────────┤
+  │ java.lang.String       │ null                                        │ Bootstrap │
+  │ DNSNameService         │ sun.misc.Launcher$ExtClassLoader@626b2d4a   │ Extension │
+  │ ParentDelegationDemo   │ sun.misc.Launcher$AppClassLoader@22d8cfe0   │ App       │
+  └────────────────────────┴─────────────────────────────────────────────┴───────────┘
+
+  关键点：
+
+  1. Bootstrap 返回 null
+     → Bootstrap ClassLoader 由 C++ 实现（HotSpot 中是 C++ 的 ClassLoader 类）
+     → Java 中没有对应的 ClassLoader 对象，所以 getClassLoader() 返回 null
+     → 这是 JDK 8 的设计，不是 bug
+
+  2. DNSNameService 由 ExtClassLoader 加载
+     → 全名：sun.net.spi.nameservice.dns.DNSNameService
+     → 位于 JAVA_HOME/lib/ext/dnsns.jar
+     → 证明 ext 目录下的 jar 由 ExtClassLoader 负责
+     → 注意：JDK 9+ 取消了 ext 机制，ExtClassLoader 被 PlatformClassLoader 取代
+
+  3. 我们自己的类由 AppClassLoader 加载
+     → 从 classpath 中的 out/production/kungfu/ 目录加载
+     → 这是所有用户代码的默认加载器
+
+  4. 加载器链验证
+     AppClassLoader → ExtClassLoader → null(Bootstrap)
+     → 三级链路完整，getParent() 沿链向上
+
+     ★ 注意："父加载器"不是 Java 继承关系（不是 extends），
+       而是 ClassLoader 内部的 parent 字段（组合关系）。
+       AppClassLoader 和 ExtClassLoader 都继承自 URLClassLoader，
+       但 AppClassLoader.parent = ExtClassLoader 实例。
+
+
+二、双亲委派流程分析（第三节）
+================================
+
+  loadClass() 源码的三步逻辑：
+
+  步骤 1：findLoadedClass(name)
+    → 先查缓存，如果这个类已经被当前加载器加载过，直接返回
+    → 每个 ClassLoader 维护一个已加载类的缓存（native 实现）
+    → 这就是为什么同一个类不会被同一个加载器重复加载
+
+  步骤 2：parent.loadClass(name) / findBootstrapClass(name)
+    → 递归委派给父加载器
+    → 当 parent == null 时，说明到了顶层，调 findBootstrapClass 让 Bootstrap 找
+    → 这就是"双亲委派"的核心：先让父亲尝试
+
+  步骤 3：findClass(name)
+    → 父加载器都没找到时，自己来找
+    → 自定义 ClassLoader 要重写的就是这个方法（不是 loadClass）
+    → ★ 面试考点：自定义加载器应该重写 findClass()，而不是 loadClass()
+      重写 loadClass() 会破坏双亲委派机制
+
+
+三、Class.forName() vs ClassLoader.loadClass()（第四节）
+========================================================
+
+  日志验证：
+    Class.forName("...ForNameDemo") → 输出 "ForNameDemo 的 static {} 被执行了！"
+    → 证明 Class.forName() 触发了类初始化（执行了 <clinit>）
+
+  两者的本质区别：
+
+  ┌─────────────────────┬──────────────────────────────────────────────┐
+  │ Class.forName()     │ 底层调用 native forName0(name, true, loader) │
+  │                     │ 第二个参数 initialize=true → 会初始化          │
+  │                     │ 也有重载版本 forName(name, false, loader)     │
+  │                     │ 可以指定 initialize=false 来不初始化           │
+  ├─────────────────────┼──────────────────────────────────────────────┤
+  │ loadClass()         │ 只执行类加载的"加载"阶段                      │
+  │                     │ 不执行"初始化"阶段（不调 <clinit>）            │
+  │                     │ 类会经历 加载 → 验证 → 准备 → 解析            │
+  │                     │ 但不会进入"初始化"阶段                        │
+  └─────────────────────┴──────────────────────────────────────────────┘
+
+  实际应用场景：
+
+  JDBC 驱动注册：
+    Class.forName("com.mysql.jdbc.Driver")
+    → Driver 类的 static {} 中有：
+      DriverManager.registerDriver(new Driver());
+    → forName 触发初始化 → static {} 执行 → 驱动自动注册
+    → 这就是为什么早期 JDBC 要写 Class.forName()
+
+    ★ JDK 6+ 的改进：JDBC 4.0 引入了 SPI 机制（ServiceLoader）
+      驱动 jar 包中 META-INF/services/java.sql.Driver 文件声明了驱动类
+      DriverManager 在 static {} 中通过 ServiceLoader 自动发现并注册驱动
+      → 所以现在不用手动写 Class.forName() 了
+
+  Spring 懒加载：
+    ClassLoader.loadClass() 只加载不初始化
+    → Spring 可以先扫描所有 Bean 的 Class（加载），但不立即实例化
+    → 等真正用到时才初始化 → 加快启动速度
+
+
+四、双亲委派的三大作用（第五节）
+==================================
+
+  1. 安全性（沙箱安全）
+     → 即使你写了 java.lang.String 类，Bootstrap 会优先加载 rt.jar 的
+     → 恶意类无法替换核心类
+     → 补充：JVM 还有包级别的安全限制，禁止用户定义 java.* 包的类
+       即使不走双亲委派，自定义加载器加载 java.lang.String 也会报
+       SecurityException: Prohibited package name: java.lang
+
+  2. 唯一性
+     → JVM 判断两个类是否相同：类全名 + 加载它的 ClassLoader
+     → 即 Class 对象的相等性 = (全限定名, ClassLoader实例)
+     → 双亲委派保证核心类由同一个加载器加载 → 全局唯一
+     → 如果打破双亲委派，不同加载器加载同一个类 → instanceof 返回 false
+
+  3. 避免重复加载
+     → findLoadedClass() 先查缓存
+     → 委派父加载器时也会查缓存
+     → 层层向上查找，已加载的类不会被重复加载
+
+
+五、面试延伸
+=============
+
+  Q: 双亲委派什么时候会被打破？
+  A: 三种经典场景：
+
+  ┌──────────────┬──────────────────────────────────────────────────────┐
+  │ 场景          │ 说明                                                  │
+  ├──────────────┼──────────────────────────────────────────────────────┤
+  │ SPI 机制      │ Bootstrap 加载的接口（如 java.sql.Driver）需要加载      │
+  │ (JDBC等)     │ classpath 下的实现类 → Bootstrap 无法向下委派           │
+  │              │ → 通过 Thread.currentThread().getContextClassLoader()  │
+  │              │ 获取 AppClassLoader 来加载实现类（线程上下文类加载器）    │
+  ├──────────────┼──────────────────────────────────────────────────────┤
+  │ Tomcat       │ 每个 WebApp 有独立的 ClassLoader                      │
+  │              │ → 优先加载 WEB-INF/classes 和 WEB-INF/lib             │
+  │              │ → 不先委派父加载器（打破双亲委派）                      │
+  │              │ → 实现不同 WebApp 的类隔离                             │
+  ├──────────────┼──────────────────────────────────────────────────────┤
+  │ 热部署       │ 卸载旧的 ClassLoader + 创建新的 ClassLoader            │
+  │ (OSGi等)     │ → 重新加载修改后的类                                   │
+  │              │ → 每个 Bundle 有独立的 ClassLoader                     │
+  └──────────────┴──────────────────────────────────────────────────────┘
+
+  → 这些内容将在下一个 Demo（BreakParentDelegationDemo）中演示
+
+
+
+---
+分析文档已写到 02.ParentDelegationDemo_日志_分析.txt，主要内容：
+
+  1. 三级加载器验证 — String→null(Bootstrap)、DNSNameService→ExtClassLoader、自己的类→AppClassLoader，加载器链完整
+  2. loadClass() 三步逻辑 — findLoadedClass 查缓存 → parent.loadClass 委派 → findClass 自己找。面试考点：自定义加载器应重写 findClass() 而非 loadClass()
+  3. Class.forName vs loadClass — forName 底层 initialize=true 会触发 <clinit>；loadClass 只加载不初始化。补充了 JDBC SPI 机制（JDK 6+ 不用手动 forName 了）和 Spring 懒加载场景
+  4. 双亲委派三大作用 — 安全性 + 唯一性（类相等 = 全限定名 + ClassLoader 实例）+ 避免重复
+  5. 面试延伸 — SPI/Tomcat/热部署三种打破双亲委派的场景，为下一个 BreakParentDelegationDemo 做铺垫
+
+  接下来可以运行 BreakParentDelegationDemo。
