@@ -1,0 +1,42 @@
+========================================
+  ThreadLocal 残留值复现
+  — 修复 ThreadLocalDemo 小节三的瑕疵
+========================================
+
+=== 一、错误用法 — 不 remove()，残留值泄露 ===
+
+  [任务1] pool-1-thread-1 set: 敏感数据-用户A
+  [任务1] 处理完毕，忘记 remove()！
+  [任务2] pool-1-thread-1 get: 敏感数据-用户A
+  [任务2] 残留值泄露！读到了用户A的数据！
+
+=== 二、正确用法 — try-finally remove() ===
+
+  [任务1] pool-2-thread-1 set: 敏感数据-用户B
+  [任务1] 处理业务...
+  [任务1] finally 中 remove()，清理完毕
+  [任务2] pool-2-thread-1 get: null
+  [任务2] 值为 null，说明 remove() 生效，无残留
+
+=== 三、对比 — core=2 为什么无法复现残留？ ===
+
+  [任务1] pool-3-thread-1 set: 敏感数据-用户C（不 remove）
+  [任务2] pool-3-thread-2 get: null
+  [任务2] 如果线程名不同 → null 是因为从未 set，不是 remove 的功劳
+
+========================================
+  面试速记
+========================================
+
+  1. 残留值复现条件：core=1 线程池，保证线程复用
+     线程复用 = 同一 Thread 对象 = 同一 ThreadLocalMap
+
+  2. core=2 时任务可能在不同线程执行，null 不等于"已清理"
+
+  3. 最佳实践：ThreadLocal 用完必须在 finally 中 remove()
+     不 remove 的后果：数据泄露（用户A看到用户B的数据）+ 内存泄漏
+
+  4. Spring 的做法：Filter/Interceptor 的 afterCompletion 中清理
+     RequestContextHolder.resetRequestAttributes()
+
+========================================

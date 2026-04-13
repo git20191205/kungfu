@@ -1,0 +1,126 @@
+========================================
+  ThreadLocal — 线程局部变量
+========================================
+
+=== 一、ThreadLocal 基本用法 ===
+
+  3 个线程各自设置不同的值，验证线程隔离性
+
+  Thread-Alice set: Alice
+  Thread-Bob set: Bob
+  Thread-Charlie set: Charlie
+  Thread-Charlie get: Charlie (线程隔离，值未被覆盖)
+  Thread-Alice get: Alice (线程隔离，值未被覆盖)
+  Thread-Bob get: Bob (线程隔离，值未被覆盖)
+
+=== 二、ThreadLocal 底层结构 ===
+
+  每个 Thread 持有一个 ThreadLocalMap，key 是 ThreadLocal 实例
+
+  ┌──────────────────────────────────────────────────────────┐
+  │  Thread                                                 │
+  │  ┌────────────────────────────────────────────────────┐  │
+  │  │  ThreadLocalMap threadLocals                       │  │
+  │  │                                                    │  │
+  │  │  Entry[] table                                     │  │
+  │  │  ┌────────────────────┐  ┌────────────────────┐    │  │
+  │  │  │ Entry[i]           │  │ Entry[j]           │    │  │
+  │  │  │                    │  │                    │    │  │
+  │  │  │ key: WeakRef ──┐   │  │ key: WeakRef ──┐   │    │  │
+  │  │  │                │   │  │                │   │    │  │
+  │  │  │       ThreadLocal  │  │       ThreadLocal  │    │  │
+  │  │  │       实例 A       │  │       实例 B       │    │  │
+  │  │  │                    │  │                    │    │  │
+  │  │  │ value: 强引用      │  │ value: 强引用      │    │  │
+  │  │  │   ↓                │  │   ↓                │    │  │
+  │  │  │ 用户对象 A         │  │ 用户对象 B         │    │  │
+  │  │  └────────────────────┘  └────────────────────┘    │  │
+  │  └────────────────────────────────────────────────────┘  │
+  └──────────────────────────────────────────────────────────┘
+
+  关键源码结构：
+    Thread {
+        ThreadLocal.ThreadLocalMap threadLocals;
+    }
+
+    ThreadLocalMap {
+        Entry[] table;
+        // Entry 继承 WeakReference<ThreadLocal<?>>
+        static class Entry extends WeakReference<ThreadLocal<?>> {
+            Object value;  // value 是强引用！
+        }
+    }
+
+=== 三、内存泄漏问题 ===
+
+  引用关系（内存泄漏的根因）：
+
+  ┌──────────────┐   强引用   ┌───────────────────┐
+  │ ThreadLocal  │──────────→│ ThreadLocal 实例  │
+  │ 变量(栈上)   │            │                   │
+  └──────────────┘            └───────────────────┘
+                                       ↑
+                                  弱引用(key)
+                                       │
+  ┌───────────┐  强引用  ┌─────────────┴─────────┐
+  │  Thread   │────────→│ ThreadLocalMap.Entry  │
+  │ (线程池中 │          │                       │
+  │  不会销毁)│          │ value ──(强引用)──→ 对象│
+  └───────────┘          └───────────────────────┘
+
+  当 ThreadLocal 变量 = null 后：
+    - key (弱引用) 被 GC 回收 → Entry.key = null
+    - value (强引用) 不会被回收 → 内存泄漏！
+
+  【错误用法】线程池中不调用 remove()：
+    pool-1-thread-1 设置了值，但没有 remove()
+    pool-1-thread-2 复用线程，读到残留值: null
+
+  【正确用法】try-finally 确保 remove()：
+    pool-1-thread-1 设置了值，处理业务...
+    pool-1-thread-1 finally 中 remove()，清理完毕
+    pool-1-thread-2 复用线程，读到: null (null 表示已正确清理)
+
+=== 四、InheritableThreadLocal ===
+
+  父线程设置: 父线程的值
+  子线程继承到: 父线程的值 (创建时从父线程复制)
+  子线程修改为: 子线程修改后的值
+  父线程仍然是: 父线程的值 (子线程修改不影响父线程)
+
+  【线程池中的局限】
+    任务1 继承到: 第一次任务的值
+    任务2 读到: 第一次任务的值 (线程被复用，不会重新继承新值！)
+
+=== 五、实际应用场景 — 用户上下文 ===
+
+  模拟 3 个 Web 请求，每个请求在不同线程中处理
+
+  [请求2] Request-2 设置用户: UserContext{userId='user_2', userName='用户2'}
+  [请求2] Service 层获取用户: UserContext{userId='user_2', userName='用户2'}
+  [请求2] DAO 层获取用户: UserContext{userId='user_2', userName='用户2'}
+  [请求2] 清理用户上下文
+  [请求1] Request-1 设置用户: UserContext{userId='user_1', userName='用户1'}
+  [请求1] Service 层获取用户: UserContext{userId='user_1', userName='用户1'}
+  [请求1] DAO 层获取用户: UserContext{userId='user_1', userName='用户1'}
+  [请求1] 清理用户上下文
+  [请求3] Request-3 设置用户: UserContext{userId='user_3', userName='用户3'}
+  [请求3] Service 层获取用户: UserContext{userId='user_3', userName='用户3'}
+  [请求3] DAO 层获取用户: UserContext{userId='user_3', userName='用户3'}
+  [请求3] 清理用户上下文
+
+========================================
+  面试速记
+========================================
+
+  1. ThreadLocal 本质：每个 Thread 持有 ThreadLocalMap，key=ThreadLocal 实例
+
+  2. 内存泄漏原因：key 是弱引用会被 GC，value 是强引用不会被 GC
+
+  3. 最佳实践：用完必须 remove()，尤其在线程池场景
+
+  4. InheritableThreadLocal 可父子传值，但线程池中不可靠
+
+  5. 典型应用：Spring 的 RequestContextHolder、MyBatis 的 SqlSession
+
+========================================

@@ -1,0 +1,110 @@
+❯ 分析日志：java/com/kungfu/concurrent/d1_thread_basis/docs/01.VolatileDemo_日志.txt
+
+  Read 1 file (ctrl+o to expand)
+
+● 日志分析：
+
+  整体结果：全部通过，运行正常。
+
+  逐节看：
+
+  ┌───────────────────────────────┬───────────────────────────────────┬──────────────────────────────────────────────┐
+  │             实验              │               结果                │                     状态                     │
+  ├───────────────────────────────┼───────────────────────────────────┼──────────────────────────────────────────────┤
+  │ VM 检测                       │ Java HotSpot(TM) 64-Bit Server VM │ 已是 Server VM，无需额外加 -server           │
+  ├───────────────────────────────┼───────────────────────────────────┼──────────────────────────────────────────────┤
+  │ 实验一：非 volatile           │ 子线程仍未感知到变化              │ 符合预期 — JIT 把 while (!flag) 优化成死循环 │
+  ├───────────────────────────────┼───────────────────────────────────┼──────────────────────────────────────────────┤
+  │ 实验二：volatile              │ 循环 585,545,671 次后感知到变化   │ 符合预期 — volatile 保证可见性               │
+  ├───────────────────────────────┼───────────────────────────────────┼──────────────────────────────────────────────┤
+  │ 实验三：volatile 不保证原子性 │ volatile int 结果 = 10000         │ 未复现问题 — 10线程×1000次竞争不够激烈       │
+  ├───────────────────────────────┼───────────────────────────────────┼──────────────────────────────────────────────┤
+  │ 实验四：AtomicInteger         │ 结果 = 10000                      │ 符合预期                                     │
+  ├───────────────────────────────┼───────────────────────────────────┼──────────────────────────────────────────────┤
+  │ DCL 单例                      │ s1 == s2 → true                   │ 符合预期                                     │
+  ├───────────────────────────────┼───────────────────────────────────┼──────────────────────────────────────────────┤
+  │ 对比表 + 面试速记             │ 正常输出                          │ 符合预期                                     │
+  └───────────────────────────────┴───────────────────────────────────┴──────────────────────────────────────────────┘
+
+  唯一需要调整的是实验三：10 线程 × 1000 次太少，竞争不激烈，volatile int count++ 恰好等于 10000，没能体现"不保证原子性"。需要加大并发量。
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(w02-concurrent\src\main\java\com\kungfu\concurrent\d1_thread_basis\VolatileDemo.java)
+  ⎿  Added 3 lines, removed 3 lines
+      177      private static void demonstrateNonAtomic() throws InterruptedException {
+      178          System.out.println("=== 二、volatile 不保证原子性 ===\n");
+      179
+      180 -        int threadCount = 10;
+      181 -        int incrementPerThread = 1000;
+      180 +        int threadCount = 20;
+      181 +        int incrementPerThread = 10000;
+      182
+      183          // ---------- 1) volatile int 的 ++ 操作 ----------
+      184 -        System.out.println("  【实验 1】volatile int count++（10 线程 x 1000 次）");
+      184 +        System.out.println("  【实验 1】volatile int count++（" + threadCount + " 线程 x " + incrementPerThread + " 次）");
+      185
+      186          count = 0; // 重置
+      187          CountDownLatch latch1 = new CountDownLatch(threadCount);
+  ⎿  PostToolUse:Edit hook error
+
+● Update(w02-concurrent\src\main\java\com\kungfu\concurrent\d1_thread_basis\VolatileDemo.java)
+  ⎿  Added 5 lines, removed 4 lines
+      196          }
+      197
+      198          latch1.await();
+      199 -        System.out.println("  volatile int 结果: " + count + "（期望 10000）");
+      200 -        System.out.println("  结论: " + (count < 10000
+      201 -                ? "结果 < 10000，volatile 不保证原子性！"
+      202 -                : "本次恰好等于 10000（概率较低），多运行几次会出现 < 10000 的情况"));
+      199 +        int expected = threadCount * incrementPerThread;
+      200 +        System.out.println("  volatile int 结果: " + count + "（期望 " + expected + "）");
+      201 +        System.out.println("  结论: " + (count < expected
+      202 +                ? "结果 < " + expected + "，volatile 不保证原子性！丢失了 " + (expected - count) + " 次更新"
+      203 +                : "本次恰好等于 " + expected + "（概率极低），多运行几次会出现丢失"));
+      204          System.out.println();
+      205
+      206          // ---------- 2) AtomicInteger 的 ++ 操作 ----------
+  ⎿  PostToolUse:Edit hook error
+
+● Update(w02-concurrent\src\main\java\com\kungfu\concurrent\d1_thread_basis\VolatileDemo.java)
+  ⎿  Added 1 line, removed 1 line
+      204          System.out.println();
+      205
+      206          // ---------- 2) AtomicInteger 的 ++ 操作 ----------
+      207 -        System.out.println("  【实验 2】AtomicInteger（10 线程 x 1000 次）");
+      207 +        System.out.println("  【实验 2】AtomicInteger（" + threadCount + " 线程 x " + incrementPerThread + " 次）");
+      208
+      209          AtomicInteger atomicCount = new AtomicInteger(0);
+      210          CountDownLatch latch2 = new CountDownLatch(threadCount);
+  ⎿  PostToolUse:Edit hook error
+
+● Update(w02-concurrent\src\main\java\com\kungfu\concurrent\d1_thread_basis\VolatileDemo.java)
+  ⎿  Added 2 lines, removed 2 lines
+      219          }
+      220
+      221          latch2.await();
+      222 -        System.out.println("  AtomicInteger 结果: " + atomicCount.get() + "（期望 10000）");
+      223 -        System.out.println("  结论: AtomicInteger 基于 CAS 保证原子性，结果一定是 10000");
+      222 +        System.out.println("  AtomicInteger 结果: " + atomicCount.get() + "（期望 " + expected + "）");
+      223 +        System.out.println("  结论: AtomicInteger 基于 CAS 保证原子性，结果一定是 " + expected);
+      224
+      225          System.out.println();
+      226          System.out.println("  ┌──────────────────────────────────────────────────────────┐");
+  ⎿  PostToolUse:Edit hook error
+
+● 验证编译并跑一下：
+
+● Bash(cd D:/workspace/kungfu && mvn compile -pl w02-concurrent -q && mvn -pl w02-concurrent -q exec:java -Dexec.mainClass="com.kungfu.concurrent.d1_thread_basis.Volat…)
+  ⎿  ========================================
+        volatile ԭ�����ڴ�ɼ��� Demo
+     ========================================
+     … +37 lines (ctrl+o to expand)
+  ⎿  (timeout 30s)
+
+● 效果很明显了：
+
+  - 调整前：10 线程 × 1000 次 → 结果 10000（恰好没丢失，实验失败）
+  - 调整后：20 线程 × 10000 次 → 结果 66773（期望 200000，丢失了 133227 次更新）
+
+  现在实验二能稳定复现 volatile 不保证原子性 的问题，对比 AtomicInteger 始终精确等于 200000，效果一目了然。

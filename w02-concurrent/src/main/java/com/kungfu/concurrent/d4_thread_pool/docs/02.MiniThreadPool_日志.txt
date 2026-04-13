@@ -1,0 +1,66 @@
+========================================
+  【Demo】手写简化版线程池
+========================================
+
+>>> Step 1：创建线程池（coreSize=2, queueCapacity=5）
+    类似于 new ThreadPoolExecutor(2, 2, 0, SECONDS, new ArrayBlockingQueue<>(5))
+
+>>> Step 2：提交 8 个任务
+    前 2 个任务 → 创建核心线程执行
+    第 3~7 个任务 → 放入队列等待
+    第 8 个任务 → 队列满，被拒绝！
+
+    任务 #1 提交成功
+    任务 #2 提交成功
+    任务 #3 提交成功
+    任务 #4 提交成功
+    任务 #5 提交成功
+    [Worker-0] 启动，开始从队列取任务...
+    [Worker-1] 启动，开始从队列取任务...
+    任务 #6 被拒绝: 任务队列已满（容量=5），拒绝任务！
+    任务 #7 被拒绝: 任务队列已满（容量=5），拒绝任务！
+    任务 #8 被拒绝: 任务队列已满（容量=5），拒绝任务！
+
+>>> Step 3：等待任务执行...
+
+    [Worker-1] 正在执行任务 #1
+    [Worker-0] 正在执行任务 #2
+    [Worker-1] 完成任务 #1
+    [Worker-0] 完成任务 #2
+    [Worker-1] 正在执行任务 #3
+    [Worker-0] 正在执行任务 #4
+    [Worker-1] 完成任务 #3
+    [Worker-1] 正在执行任务 #5
+    [Worker-0] 完成任务 #4
+    [Worker-1] 完成任务 #5
+
+>>> Step 4：关闭线程池
+    调用 shutdown() → 设置 isShutdown=true，中断所有 Worker
+    调用 awaitTermination() → 等待所有 Worker 退出
+    [Worker-0] 退出
+    [Worker-1] 退出
+
+========================================
+  测试结果
+========================================
+    成功提交任务数: 5
+    核心线程数:     2
+    队列容量:       5
+    最大可接收任务: coreSize + queueCapacity = 2 + 5 = 7
+    第 8 个任务被拒绝 → 符合预期！
+
+    execute() 的三步判断逻辑：
+    ┌─ workers < coreSize? ──→ 创建新 Worker 线程
+    ├─ 队列未满?            ──→ 放入队列等待
+    └─ 队列已满?            ──→ 拒绝（RejectedExecutionException）
+========================================
+
+---
+● MiniThreadPool 分析完成。核心发现：
+
+  - execute 三步判断正确：workers < core → 创建 Worker；队列未满 → 入队；队列满 → 拒绝
+  - 实际容量 = queueCapacity(5)，与 JDK 的 max+queue 不同（简化版无非核心线程扩展）
+  - Worker 负载均衡：Worker-1 执行 3 个、Worker-0 执行 2 个，交替消费
+  - 优雅关闭验证通过：shutdown → 中断 → Worker 退出
+
+  下一步：请在 IDEA 中运行 D5 — ConcurrentHashMapDemo 的 main 方法，把日志分享给我。

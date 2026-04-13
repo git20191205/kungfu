@@ -1,0 +1,125 @@
+D:\IDE\java\jdk1.8.0_441\bin\java.exe -javaagent:D:\IDE\idea\ideaIC-2024.3.4.1.win\lib\idea_rt.jar=49595 -Dfile.encoding=UTF-8 -classpath D:\IDE\java\jdk1.8.0_441\jre\lib\charsets.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\deploy.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\access-bridge-64.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\cldrdata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\dnsns.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jaccess.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\jfxrt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\localedata.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\nashorn.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunec.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunjce_provider.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunmscapi.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\sunpkcs11.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\ext\zipfs.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\javaws.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jce.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfr.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jfxswt.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\jsse.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\management-agent.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\plugin.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\resources.jar;D:\IDE\java\jdk1.8.0_441\jre\lib\rt.jar;D:\workspace\kungfu\out\production\kungfu com.kungfu.concurrent.d1_thread_basis.VolatileDemo
+========================================
+   volatile 原理与内存可见性 Demo
+========================================
+
+  当前 VM: Java HotSpot(TM) 64-Bit Server VM
+
+=== 一、内存可见性问题 ===
+
+  【实验 1】不加 volatile 的普通变量
+  flag 初始值 = false，子线程循环检测 flag...
+
+  主线程已将 flag 设为 true
+  [普通变量] ⚠ 子线程仍未感知到 flag 变化（JIT 优化导致不可见）
+
+  【实验 2】加 volatile 的变量
+  volatileFlag 初始值 = false，子线程循环检测 volatileFlag...
+
+  主线程已将 volatileFlag 设为 true
+  [volatile 变量] 子线程检测到 volatileFlag 变化！循环了 585545671 次
+  [volatile 变量] 子线程正常退出 —— volatile 保证了可见性！
+
+  ┌──────────────────────────────────────────────────────┐
+  │ 结论：volatile 修饰的变量，写操作会立即刷回主存，    │
+  │ 读操作会从主存重新读取，从而保证多线程间的可见性。    │
+  └──────────────────────────────────────────────────────┘
+
+=== 二、volatile 不保证原子性 ===
+
+  【实验 1】volatile int count++（10 线程 x 1000 次）
+  volatile int 结果: 10000（期望 10000）
+  结论: 本次恰好等于 10000（概率较低），多运行几次会出现 < 10000 的情况
+
+  【实验 2】AtomicInteger（10 线程 x 1000 次）
+  AtomicInteger 结果: 10000（期望 10000）
+  结论: AtomicInteger 基于 CAS 保证原子性，结果一定是 10000
+
+  ┌──────────────────────────────────────────────────────────┐
+  │ count++ 拆解为 3 步：                                    │
+  │   ① 读取 count 的值（从主存读到工作内存）                │
+  │   ② 执行 +1 操作                                        │
+  │   ③ 写回 count 的新值（从工作内存刷回主存）              │
+  │ volatile 只保证 ①③ 的可见性，不保证 ①②③ 作为整体的原子性 │
+  └──────────────────────────────────────────────────────────┘
+
+=== 三、指令重排序 — 双重检查锁单例 ===
+
+  双重检查锁（DCL）单例模式代码：
+  ─────────────────────────────────────────────────
+  public class Singleton {
+      // 必须加 volatile！
+      private static volatile Singleton instance;
+
+      private Singleton() {}
+
+      public static Singleton getInstance() {
+          if (instance == null) {             // 第一次检查（无锁）
+              synchronized (Singleton.class) {
+                  if (instance == null) {     // 第二次检查（有锁）
+                      instance = new Singleton();
+                  }
+              }
+          }
+          return instance;
+      }
+  }
+  ─────────────────────────────────────────────────
+
+  new Singleton() 在 JVM 中分为 3 步：
+  ┌────┬──────────────────────────────────────────────────┐
+  │ 步骤│ 操作                                             │
+  ├────┼──────────────────────────────────────────────────┤
+  │ ①  │ 分配内存空间                                     │
+  │ ②  │ 初始化对象（调用构造方法）                        │
+  │ ③  │ 将 instance 引用指向内存地址                      │
+  └────┴──────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────┐
+  │ 指令重排序风险：JVM 可能将执行顺序优化为 ① → ③ → ②      │
+  │                                                         │
+  │ 线程 A 执行到 ③（instance 已非 null，但对象未初始化）    │
+  │ 线程 B 第一次检查 instance != null，直接返回              │
+  │ → 线程 B 拿到的是一个未完成初始化的对象！                │
+  │                                                         │
+  │ 加 volatile 后：禁止 ② 和 ③ 重排序，保证对象一定初始化   │
+  │ 完毕后才将引用赋给 instance                              │
+  └─────────────────────────────────────────────────────────┘
+
+  DCL 单例验证: s1 == s2 → true（应为 true）
+
+=== 四、volatile vs synchronized 对比 ===
+
+  ┌──────────┬─────────────────────┬─────────────────────────┐
+  │ 特性     │ volatile            │ synchronized            │
+  ├──────────┼─────────────────────┼─────────────────────────┤
+  │ 原子性   │ 不保证              │ 保证                    │
+  ├──────────┼─────────────────────┼─────────────────────────┤
+  │ 可见性   │ 保证                │ 保证                    │
+  ├──────────┼─────────────────────┼─────────────────────────┤
+  │ 有序性   │ 保证（禁止重排序）  │ 保证（临界区串行执行）  │
+  ├──────────┼─────────────────────┼─────────────────────────┤
+  │ 阻塞     │ 不会阻塞线程        │ 可能阻塞线程            │
+  ├──────────┼─────────────────────┼─────────────────────────┤
+  │ 使用场景 │ 一写多读的状态标志  │ 多写、复合操作          │
+  │          │ DCL 单例模式        │ 临界区代码保护          │
+  │          │ 轻量级通知机制      │ 需要互斥的场景          │
+  └──────────┴─────────────────────┴─────────────────────────┘
+
+========================================
+   面试速记
+========================================
+
+  1. volatile 保证可见性和有序性，但不保证原子性
+  2. volatile 写操作会插入 StoreStore + StoreLoad 屏障
+  3. volatile 读操作会插入 LoadLoad + LoadStore 屏障
+  4. volatile 适用于一写多读的状态标志场景
+  5. 复合操作（如 i++）需要用 AtomicInteger 或 synchronized
+  6. DCL 单例必须加 volatile，防止指令重排导致拿到未初始化对象
+  7. volatile 的 happens-before 规则：
+     对一个 volatile 变量的写 happens-before 后续对它的读
+  8. volatile 底层通过 lock 前缀指令实现（x86 架构）：
+     锁总线/缓存行 → 写回主存 → MESI 协议使其他缓存失效
+
+
+Process finished with exit code 0

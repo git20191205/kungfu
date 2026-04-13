@@ -1,0 +1,85 @@
+
+========================================
+  CompletableFuture — 异步编程利器
+========================================
+
+=== 一、创建异步任务 ===
+
+  [supplyAsync] 执行线程: ForkJoinPool.commonPool-worker-25
+  [supplyAsync] 返回值: Hello from supplyAsync
+
+  [runAsync] 执行线程: ForkJoinPool.commonPool-worker-25
+  [runAsync] 执行了一个无返回值的任务
+
+  [自定义线程池] 执行线程: custom-pool-thread
+  [自定义线程池] 返回值: Hello from custom pool
+
+=== 二、链式处理 ===
+
+  [thenApply-1] 字符串 → 长度: "Hello CompletableFuture" → 23
+  [thenApply-2] 长度 → 描述: 长度是 23
+  最终结果: 长度是 23
+
+  [thenAccept] 消费结果: 消费我吧
+
+  [thenRun] 上游已完成，但我拿不到结果，只做后续动作
+
+  --- thenCompose vs thenApply ---
+  [thenApply]   嵌套类型，需要两次 join: data → processed
+  [thenCompose] 扁平类型，一次 join:     data → processed
+
+=== 三、组合多个任务 ===
+
+  [thenCombine] 价格: 99.9 | 折扣: 8折 → 最终: 79.92
+
+  [allOf] 全部完成: 任务A完成 | 任务B完成 | 任务C完成
+
+  [anyOf] 最先完成的: 快任务(100ms)
+
+=== 四、异常处理 ===
+
+  [exceptionally] 捕获异常: java.lang.RuntimeException: 模拟异常
+  [exceptionally] 最终结果: 降级结果
+
+  [handle] 异常分支: java.lang.RuntimeException: handle 测试异常
+  [handle] 最终结果: handle 降级结果
+
+  [handle-成功] 成功分支: 一切正常
+  [handle-成功] 最终结果: 一切正常 (已处理)
+
+  [whenComplete] 观察结果: whenComplete 的结果, 异常: null
+  [whenComplete] 最终结果不变: whenComplete 的结果
+
+  [传播] 异常跳过了中间的 thenApply，在这里被捕获: java.lang.RuntimeException: 链头异常
+  [传播] 最终结果: 异常恢复
+
+=== 五、实战场景 — 并行调用多个服务 ===
+
+  --- 串行调用 ---
+  用户信息: {name: '张三', age: 28}
+  订单列表: [订单1, 订单2, 订单3]
+  积分信息: {积分: 2580}
+  串行总耗时: 1025ms (约 300+500+200 = 1000ms)
+
+  --- 并行调用 (CompletableFuture.allOf) ---
+  用户信息: {name: '张三', age: 28}
+  订单列表: [订单1, 订单2, 订单3]
+  积分信息: {积分: 2580}
+  并行总耗时: 515ms (约 max(300,500,200) = 500ms)
+
+  --- 耗时对比 ---
+  串行: 1025ms
+  并行: 515ms
+  提升: 约 510ms，并行版本快 2.0 倍
+
+========================================
+  面试速记
+========================================
+
+  1. supplyAsync 有返回值，runAsync 无返回值
+  2. thenApply = map, thenCompose = flatMap
+  3. allOf 等所有完成，anyOf 等任一完成
+  4. exceptionally 只处理异常，handle 处理成功和异常
+  5. 默认线程池是 ForkJoinPool.commonPool()，生产环境建议自定义线程池
+
+========================================

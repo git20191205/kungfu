@@ -1,0 +1,120 @@
+❯ com/kungfu/concurrent/d5_concurrent_container/docs/01.ConcurrentHashMapDemo_1_日志.txt
+
+  Read 1 file, listed 1 directory (ctrl+o to expand)
+
+● 日志只有前 11 行，看起来不完整。让我检查一下完整日志的情况。
+
+  Read 1 file (ctrl+o to expand)
+
+● 日志似乎被截断了——只有"一、HashMap 线程不安全演示"的前两次运行，后面的小节（二~四、面试速记）没有出现。
+
+  可能的原因：
+  1. Demo 程序运行时在第 3 次 HashMap 并发 put 时发生了死循环或异常（JDK 7 的 HashMap 并发扩容可能导致链表成环/死循环）
+  2. 或者只是日志粘贴时截断了
+
+  请检查一下：
+  - IDEA 控制台输出是否在 "第 2 次运行" 后就卡住了？
+  - 还是有更多输出，只是没有粘贴完整？
+
+  如果确实卡住了，可能需要调整代码（比如减少 HashMap 并发 put 的次数或加超时）。请确认后把完整日志分享给我。
+
+✻ Crunched for 43s
+
+❯ 卡住了
+
+● HashMap 并发 put 导致死循环了。让我看一下源码，然后修复。
+
+  Read 1 file (ctrl+o to expand)
+
+● 问题确认：HashMap 并发 put 在第 3 轮触发了死循环（JDK 7 的链表成环，或 JDK 8+ 的内部状态损坏导致卡死）。需要给 HashMap 演示加超时保护。交给 /be 修复。
+
+● Skill(/be)
+  ⎿  Successfully loaded skill
+
+● 我来修复这个问题。先读取当前代码，然后进行修改。
+
+  Read 1 file (ctrl+o to expand)
+
+● 好，代码已读过。现在激活角色并进行修改。
+
+● Bash(echo '{"role":"be","timestamp":'$(date +%s)'}' > "D:/workspace/kungfu/.claude/.active-role")
+  ⎿  (No output)
+
+● 添加 TimeUnit import：
+
+● Update(w02-concurrent\src\main\java\com\kungfu\concurrent\d5_concurrent_container\ConcurrentHashMapDemo.java)
+  ⎿  Added 1 line
+       4  import java.util.Map;
+       5  import java.util.concurrent.ConcurrentHashMap;
+       6  import java.util.concurrent.CountDownLatch;
+       7 +import java.util.concurrent.TimeUnit;
+       8
+       9  /**
+      10   * 【Demo】ConcurrentHashMap 原理 — 1.7 vs 1.8
+  ⎿  PostToolUse:Edit hook error                                                              ⎿  Failed with non-blocking status code: node:internal/modules/cjs/loader:1228
+
+● 修改 demonstrateHashMapUnsafe() 方法——减为 2 轮，加超时保护：
+
+● Update(w02-concurrent\src\main\java\com\kungfu\concurrent\d5_concurrent_container\ConcurrentHashMapDemo.java)
+  ⎿  Added 21 lines, removed 7 lines
+      49          System.out.println("  启动 " + THREAD_COUNT + " 个线程，每个线程 put " + OPERATIONS_PER_THREAD + " 个不同 key");
+      50          System.out.println("  预期 size = " + (THREAD_COUNT * OPERATIONS_PER_THREAD) + "\n");
+      51
+      52 -        // 运行 3 次观察不一致性
+      53 -        for (int round = 1; round <= 3; round++) {
+      52 +        // 运行 2 次观察不一致性（加超时保护，防止 HashMap 并发扩容导致死循环）
+      53 +        for (int round = 1; round <= 2; round++) {
+      54              Map<Integer, Integer> map = new HashMap<>();
+      55              CountDownLatch latch = new CountDownLatch(THREAD_COUNT);
+      56              Thread[] threads = new Thread[THREAD_COUNT];
+     ...
+      68              for (Thread thread : threads) {
+      69                  thread.start();
+      70              }
+      71 -            latch.await();
+      71
+      73 -            int actualSize = map.size();
+      74 -            boolean safe = (actualSize == THREAD_COUNT * OPERATIONS_PER_THREAD);
+      75 -            System.out.println("  第 " + round + " 次运行: size = " + actualSize
+      76 -                    + (safe ? " (恰好正确)" : " (数据丢失!)"));
+      72 +            boolean finished = latch.await(5, TimeUnit.SECONDS);
+      73 +
+      74 +            if (finished) {
+      75 +                int actualSize = map.size();
+      76 +                boolean safe = (actualSize == THREAD_COUNT * OPERATIONS_PER_THREAD);
+      77 +                System.out.println("  第 " + round + " 次运行: size = " + actualSize
+      78 +                        + (safe ? " (恰好正确)" : " (数据丢失!)"));
+      79 +            } else {
+      80 +                // 超时 → 大概率触发了 HashMap 并发扩容导致的死循环
+      81 +                for (Thread thread : threads) {
+      82 +                    thread.interrupt();
+      83 +                }
+      84 +                System.out.println("  第 " + round + " 次运行: ⚠ 超时！线程卡死（HashMap 并发扩容导致链表成环/死循环）");
+      85 +                System.out.println("    → 这正是 HashMap 不安全的最严重后果：CPU 100%，程序无法继续");
+      86 +                // 等待中断后的线程退出
+      87 +                for (Thread thread : threads) {
+      88 +                    thread.join(1000);
+      89 +                }
+      90 +            }
+      91          }
+      92
+      93          System.out.println();
+  ⎿  PostToolUse:Edit hook error                                                              ⎿  Failed with non-blocking status code: node:internal/modules/cjs/loader:1228
+
+● 编译验证：
+
+● Bash(cd "D:/workspace/kungfu" && mvn compile -pl w02-concurrent -q 2>&1 | tail -10)
+  ⎿  (No output)
+
+● 编译通过。清理角色标记：
+
+● Bash(rm -f "D:/workspace/kungfu/.claude/.active-role")
+  ⎿  Done
+
+● 修复完成，改动：
+
+  1. 循环从 3 次减为 2 次 — 降低触发死循环概率
+  2. latch.await() → latch.await(5, TimeUnit.SECONDS) — 5 秒超时保护
+  3. 超时后中断所有线程 + 打印说明：这正是 HashMap 并发扩容的最严重后果（链表成环/死循环/CPU 100%）
+
+  请在 IDEA 中重新运行 ConcurrentHashMapDemo，分享完整日志给我

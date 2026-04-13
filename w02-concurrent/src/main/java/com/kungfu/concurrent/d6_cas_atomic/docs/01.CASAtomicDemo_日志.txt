@@ -1,0 +1,134 @@
+========================================
+  CAS 与原子类 — 无锁并发的基石
+========================================
+
+=== 一、CAS 原理 — Compare And Swap ===
+
+  ┌────────────────────────────────────────────────────┐
+  │         compareAndSwap(V, Expected, New)          │
+  │                                                    │
+  │  V = 内存地址上的当前值                             │
+  │  Expected = 预期值（线程之前读到的值）              │
+  │  New = 要更新的新值                                │
+  │                                                    │
+  │  if (V == Expected) {                              │
+  │      V = New;         // 原子更新                  │
+  │      return true;     // 成功                      │
+  │  } else {                                          │
+  │      return false;    // 失败，需自旋重试           │
+  │  }                                                 │
+  └────────────────────────────────────────────────────┘
+
+  底层实现链路：
+    AtomicInteger.compareAndSet()
+      → Unsafe.compareAndSwapInt()
+        → JNI 调用
+          → CPU cmpxchg 指令（硬件级原子操作）
+
+  【演示】CAS 自旋更新：
+    初始值: 0
+    CAS 自旋更新: 0 → 1 (自旋次数: 1)
+    当前值: 1
+
+  【演示】CAS 失败场景：
+    compareAndSet(100, 200) → true, 当前值: 200
+    compareAndSet(100, 300) → false, 当前值: 200  (预期值100与实际值200不符，CAS 失败)
+
+=== 二、CAS 三大问题 ===
+
+  【问题1】ABA 问题
+
+    场景：线程1读到值 A，被挂起；线程2将 A→B→A；
+          线程1恢复，CAS 比较 A==A 成功，但数据已被篡改过！
+
+    --- 普通 AtomicInteger（无法检测 ABA）---
+    初始值: 1
+    线程2: 1 → 2 (A→B)
+    线程2: 2 → 1 (B→A)
+    线程1: compareAndSet(1, 3) → true (ABA 未被发现!)
+
+    --- AtomicStampedReference（版本号解决 ABA）---
+    初始值: 1, 版本号: 1
+    线程2: 1→2, 版本号: 1→2
+    线程2: 2→1, 版本号: 2→3
+    线程1: compareAndSet(1, 3, stamp=1) → false (ABA 被检测到! 版本号不匹配)
+
+  【问题2】自旋开销
+    - CAS 失败后不断重试（自旋），竞争激烈时 CPU 空转
+    - 解决思路：LongAdder 分段减少竞争（见第四节）
+
+  【问题3】只能保证单个变量的原子性
+    - CAS 只能对一个变量做原子操作
+    - 多变量原子更新：用 AtomicReference 包装成对象
+    - 或使用锁（synchronized / ReentrantLock）
+
+=== 三、Atomic 原子类族 ===
+
+  【3.1】AtomicInteger 基本操作
+
+    初始值: 0
+    incrementAndGet(): 1
+    incrementAndGet(): 2
+    getAndAdd(5): 2 → 当前值: 7
+    compareAndSet(7, 10): true → 当前值: 10
+    compareAndSet(7, 20): false → 当前值: 10 (预期值不匹配)
+
+  【3.2】AtomicReference — 引用类型原子更新
+
+    初始值: User{name='Alice', age=25}
+    compareAndSet(Alice→Bob): true → User{name='Bob', age=30}
+    compareAndSet(Alice→Charlie): false → User{name='Bob', age=30} (引用已变，CAS 失败)
+
+  【3.3】AtomicIntegerFieldUpdater — 字段级原子更新
+
+    适用场景：已有类不想改为 AtomicInteger，但需要原子更新某个字段
+    要求：字段必须是 volatile int，且不能是 private
+
+    初始值: 0
+    incrementAndGet(): 1
+    addAndGet(10): 11
+    compareAndSet(11, 100): true → 100
+
+=== 四、LongAdder vs AtomicLong 性能对比 ===
+
+  测试条件: 10 个线程，每线程累加 1,000,000 次
+
+  ┌──────────────────┬──────────────────┬──────────────────┐
+  │                  │   AtomicLong     │   LongAdder      │
+  ├──────────────────┼──────────────────┼──────────────────┤
+  │ 最终结果         │         10000000 │         10000000 │
+  │ 预期值           │         10000000 │         10000000 │
+  ├──────────────────┼──────────────────┼──────────────────┤
+  │ 耗时             │           117 ms │            22 ms │
+  └──────────────────┴──────────────────┴──────────────────┘
+
+  【原理】LongAdder 为何更快？
+    AtomicLong：所有线程 CAS 竞争同一个 value → 大量自旋失败
+    LongAdder：分段思想，将竞争分散到 Cell 数组
+
+    ┌──────────┐
+    │  base    │ ←── 无竞争时直接 CAS 更新
+    └──────────┘
+    ┌────────┬────────┬────────┬────────┐
+    │Cell[0] │Cell[1] │Cell[2] │Cell[3] │ ←── 竞争时线程散列到不同 Cell
+    └────────┴────────┴────────┴────────┘
+    sum() = base + Cell[0] + Cell[1] + ... + Cell[n]
+
+    注意：sum() 非实时精确值（统计过程中可能有并发修改）
+          适合统计场景（如计数器），不适合需要精确值的场景
+
+========================================
+  面试速记
+========================================
+
+  1. CAS = Compare And Swap，CPU 级原子操作（cmpxchg 指令）
+
+  2. ABA 问题用 AtomicStampedReference 解决（加版本号）
+
+  3. AtomicInteger 底层是 Unsafe.compareAndSwapInt + 自旋
+
+  4. LongAdder 高并发下优于 AtomicLong（分段思想：base + Cell[]）
+
+  5. CAS 是 synchronized 优化和并发容器的基础
+
+========================================
