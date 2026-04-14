@@ -1,0 +1,142 @@
+========================================
+   ConditionalDemo 日志分析
+========================================
+
+=== 整体结果 ===
+
+  4 个条件 Bean 全部注册成功，条件注解家族（OnClass / OnMissingClass / OnBean / OnMissingBean）
+  链式判断验证通过，无条件不满足的 Bean。
+
+=== 逐步分析 ===
+
+  ┌──────────────────┬──────────────────────────────────────────┬──────────────────────────────────┐
+  │ Bean 名称        │ 条件注解                                  │ 判断结果                          │
+  ├──────────────────┼──────────────────────────────────────────┼──────────────────────────────────┤
+  │ h2Service        │ @ConditionalOnClass(org.h2.Driver)       │ ✅ H2 驱动在 classpath 中存在    │
+  ├──────────────────┼──────────────────────────────────────────┼──────────────────────────────────┤
+  │ noOracleService  │ @ConditionalOnMissingClass               │ ✅ Oracle 驱动不在 classpath 中  │
+  │                  │   (oracle.jdbc.OracleDriver)             │                                  │
+  ├──────────────────┼──────────────────────────────────────────┼──────────────────────────────────┤
+  │ dependentService │ @ConditionalOnBean(name="h2Service")     │ ✅ h2Service 已注册，链式条件满足│
+  ├──────────────────┼──────────────────────────────────────────┼──────────────────────────────────┤
+  │ fallbackService  │ @ConditionalOnMissingBean                │ ✅ missingBean 不存在，兜底生效  │
+  │                  │   (name="missingBean")                   │                                  │
+  └──────────────────┴──────────────────────────────────────────┴──────────────────────────────────┘
+
+  条件不满足而未注册的 Bean：
+    （无 -- 当前环境下所有条件均满足）
+
+=== 重点观察 1 -- 4 个 Bean 的注册结果 ===
+
+  日志关键行：
+    "容器中注册的自定义 Bean："
+    "✓ h2Service = H2 Database Service (H2 驱动存在)"
+    "✓ noOracleService = Non-Oracle Service (Oracle 驱动不存在)"
+    "✓ dependentService = Dependent Service (依赖 h2Service)"
+    "✓ fallbackService = Fallback Service (missingBean 不存在)"
+
+  4 个 Bean 全部注册成功，每个 Bean 的值（字符串）清晰说明了其注册原因：
+    - h2Service: H2 驱动 (org.h2.Driver) 在 classpath 中存在
+    - noOracleService: Oracle 驱动 (oracle.jdbc.OracleDriver) 不在 classpath 中
+    - dependentService: 依赖的 h2Service 已经存在于容器中
+    - fallbackService: 名为 "missingBean" 的 Bean 不存在于容器中
+
+  日志中 "条件不满足而未注册的 Bean：" 后面没有输出任何内容，说明所有条件都满足了。
+
+=== 重点观察 2 -- @ConditionalOnClass 与 @ConditionalOnMissingClass 的对称性 ===
+
+  h2Service 用 @ConditionalOnClass(name = "org.h2.Driver")：
+    - classpath 中有 H2 驱动 -> 条件满足 -> Bean 注册
+    - 结果: "H2 Database Service (H2 驱动存在)"
+
+  noOracleService 用 @ConditionalOnMissingClass("oracle.jdbc.OracleDriver")：
+    - classpath 中没有 Oracle 驱动 -> 条件满足 -> Bean 注册
+    - 结果: "Non-Oracle Service (Oracle 驱动不存在)"
+
+  这两个注解是对称的：
+    @ConditionalOnClass     -- 类存在时生效（用于：有了依赖就自动配置）
+    @ConditionalOnMissingClass -- 类不存在时生效（用于：没有某依赖时走备选方案）
+
+  真实应用场景：
+    - 有 Jackson -> 自动配置 MappingJackson2HttpMessageConverter
+    - 没有 Jackson 但有 Gson -> 自动配置 GsonHttpMessageConverter
+
+=== 重点观察 3 -- @ConditionalOnBean 的链式依赖传递 ===
+
+  日志关键行：
+    "✓ h2Service = H2 Database Service (H2 驱动存在)"
+    "✓ dependentService = Dependent Service (依赖 h2Service)"
+
+  dependentService 标注了 @ConditionalOnBean(name = "h2Service")，它的注册前提是
+  h2Service 先注册成功。链式依赖如下：
+
+    classpath 有 org.h2.Driver
+      -> @ConditionalOnClass 通过
+        -> h2Service 注册到容器
+          -> @ConditionalOnBean(name="h2Service") 通过
+            -> dependentService 注册到容器
+
+  如果从 pom.xml 移除 H2 依赖：
+    -> @ConditionalOnClass 不通过
+      -> h2Service 不注册
+        -> @ConditionalOnBean 不通过
+          -> dependentService 也不注册
+
+  这种传递性在真实 SpringBoot 中非常常见：
+    DataSourceAutoConfiguration -> JdbcTemplateAutoConfiguration -> MyBatisAutoConfiguration
+    没有 DataSource，后面的全部跳过。
+
+=== 重点观察 4 -- @ConditionalOnMissingBean 的兜底语义 ===
+
+  日志关键行：
+    "✓ fallbackService = Fallback Service (missingBean 不存在)"
+
+  fallbackService 使用 @ConditionalOnMissingBean(name = "missingBean")：
+    - 容器中没有名为 "missingBean" 的 Bean -> 条件满足 -> fallbackService 注册
+
+  这个模式在 SpringBoot 自动配置中大量使用：
+    @Bean
+    @ConditionalOnMissingBean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();  // 提供默认的 Jackson 配置
+    }
+
+  用户只需要自己定义一个 ObjectMapper @Bean，自动配置的默认实现就自动失效。
+  这就是"约定大于配置"的实现方式 -- 有合理的默认值，但永远允许用户覆盖。
+
+=== 重点观察 5 -- 排查自动配置问题的方法 ===
+
+  日志中展示了 5 种排查方式：
+    1. --debug 启动参数（打印 ConditionEvaluationReport）
+    2. Actuator /conditions 端点（Web 环境下查看 JSON 格式报告）
+    3. logging.level.org.springframework.boot.autoconfigure=DEBUG
+    4. IDEA Spring Boot Dashboard 可视化查看
+    5. 注意 @ConditionalOnMissingBean 的"被抢注"问题
+
+  以及两个常见排查场景：
+    Q: 为什么 DataSource 没有自动配置？
+    A: 检查 classpath 是否有 JDBC 驱动（@ConditionalOnClass）
+
+    Q: 为什么我的 Bean 被覆盖了？
+    A: 检查自动配置类是否没有 @ConditionalOnMissingBean
+
+  排查的第一步永远是：java -jar app.jar --debug，查看 ConditionEvaluationReport，
+  它会明确列出每个条件注解的匹配/不匹配原因。
+
+=== 与前两个 Demo 的对照 ===
+
+  MiniAutoConfigDemo：手写 evaluateConditions() 验证了 @ConditionalOnClass 和 @ConditionalOnProperty
+  AutoConfigurationDemo：在真实容器中验证了 @ConditionalOnMissingBean 的兜底机制
+  本 Demo：在真实 Spring 容器中验证了完整的条件注解家族：
+    - @ConditionalOnClass / @ConditionalOnMissingClass -> classpath 维度
+    - @ConditionalOnBean / @ConditionalOnMissingBean -> 容器 Bean 维度
+  两个维度组合使用，构成了 SpringBoot 自动装配的完整过滤体系。
+
+=== 结论 ===
+
+  @Conditional 是 SpringBoot 自动装配的"门卫"，理解它就能理解为什么引入一个 starter
+  就能自动配置好一切。条件注解具备三个核心特性：
+  1. 传递性（链式依赖）-- h2Service 不注册则 dependentService 也不注册
+  2. 兜底性（@ConditionalOnMissingBean）-- 用户不定义就用默认的，定义了就退让
+  3. 对称性（OnClass/OnMissingClass, OnBean/OnMissingBean）-- 正反两面都能控制
+  排查自动配置问题的第一步永远是：--debug 看 ConditionEvaluationReport。

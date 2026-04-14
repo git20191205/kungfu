@@ -1,0 +1,97 @@
+MiniTransactionDemo 日志分析
+========================================
+
+整体结果: 手写事务管理器两大场景验证通过 -- 正常转账 COMMIT，异常转账 ROLLBACK，连接通过 ThreadLocal 复用。
+
+=== 逐步分析 ===
+
+  ┌──────────────────────────────┬──────────────────┬──────┐
+  | 场景                         | 结果              | 状态 |
+  ├──────────────────────────────┼──────────────────┼──────┤
+  | 二、正常转账（事务应提交）     | COMMIT 成功       | ✅   |
+  | 三、异常转账（事务应回滚）     | ROLLBACK 成功     | ✅   |
+  └──────────────────────────────┴──────────────────┴──────┘
+
+=== 重点观察 1：正常转账 -- Connection-1 全程复用，COMMIT 收尾 ===
+
+  日志原文（场景二）：
+
+    → 进入事务切面: transfer()
+      [TxManager] 为当前线程创建新连接 Connection-1
+      [Connection-1] BEGIN TRANSACTION
+      [TxManager] 开启新事务（外层）
+      [TxManager] 复用当前线程的连接 Connection-1
+      [Connection-1] 执行 SQL: UPDATE account SET balance=balance-100.0 WHERE name='Alice' (inTx=true)
+      [Connection-1] 执行 SQL: UPDATE account SET balance=balance+100.0 WHERE name='Bob' (inTx=true)
+      [Connection-1] COMMIT
+      [TxManager] 提交事务（外层），清理连接
+    ← 离开事务切面: transfer() [正常]
+
+  分析：
+  1. AOP 拦截 @MiniTransactional 方法 → "进入事务切面: transfer()"
+  2. TxManager 创建 Connection-1 并存入 ThreadLocal
+  3. DAO 执行时打印 "复用当前线程的连接 Connection-1" -- 证明从 ThreadLocal 取到同一连接
+  4. 两条 UPDATE（Alice -100.0, Bob +100.0）都标记 inTx=true，在同一事务内
+  5. 方法正常返回 → Connection-1 COMMIT → 清理 ThreadLocal
+  6. 切面以 "[正常]" 状态退出
+
+=== 重点观察 2：异常转账 -- 扣款 SQL 已执行但 ROLLBACK 撤销 ===
+
+  日志原文（场景三）：
+
+    → 进入事务切面: badTransfer()
+      [TxManager] 为当前线程创建新连接 Connection-2
+      [Connection-2] BEGIN TRANSACTION
+      [TxManager] 开启新事务（外层）
+      [TxManager] 复用当前线程的连接 Connection-2
+      [Connection-2] 执行 SQL: UPDATE account SET balance=balance-100 WHERE name='Alice' (inTx=true)
+      [Connection-2] ROLLBACK
+      [TxManager] 回滚事务
+    ← 离开事务切面: badTransfer() [回滚: RuntimeException]
+    [业务层] 捕获异常: 网络异常！
+
+  分析：
+  1. 新连接 Connection-2（上一个事务已清理 ThreadLocal，所以不是 Connection-1）
+  2. Alice 的扣款 SQL 已经执行了（"UPDATE ... balance-100 WHERE name='Alice'"）
+  3. 但紧接着就是 "[Connection-2] ROLLBACK" -- 切面捕获到 RuntimeException 后执行回滚
+  4. ROLLBACK 撤销了已执行的扣款 SQL，数据一致性得到保证
+  5. 切面标记 "[回滚: RuntimeException]"，异常继续传播
+  6. 最终 "[业务层] 捕获异常: 网络异常！" -- 调用方感知到了异常
+
+=== 重点观察 3：Connection-1 vs Connection-2 证明连接生命周期管理 ===
+
+  场景二使用 Connection-1，场景三使用 Connection-2，原因链：
+  1. 场景二 COMMIT 后，日志打印 "[TxManager] 提交事务（外层），清理连接"
+     → ThreadLocal 被清空，Connection-1 归还
+  2. 场景三开始时，ThreadLocal 中无连接
+     → "[TxManager] 为当前线程创建新连接 Connection-2"
+  3. 这证明：事务结束后连接必须被释放，否则会导致连接泄漏
+
+  对应 Spring 源码：
+    DataSourceTransactionManager.doCleanupAfterCompletion()
+    → TransactionSynchronizationManager.unbindResource(dataSource)
+    → DataSourceUtils.releaseConnection(conn, dataSource)
+
+=== 重点观察 4：Mini 实现与 Spring 源码的映射关系 ===
+
+  日志中的映射表已给出对照：
+
+    @MiniTransactional           → @Transactional
+    MiniTransactionManager       → PlatformTransactionManager (DataSourceTransactionManager)
+    CURRENT_CONNECTION           → TransactionSynchronizationManager.resources
+    (ThreadLocal)                  (ThreadLocal<Map<Object, Object>>)
+    事务代理 InvocationHandler    → TransactionInterceptor
+    begin/commit/rollback        → TransactionStatus / TransactionDefinition
+
+  核心模式完全一致：AOP + ThreadLocal + try-catch-finally。
+  Mini 用单个 ThreadLocal<Connection> 简化了 Spring 的 ThreadLocal<Map> 结构，
+  但本质机制相同。
+
+=== 结论 ===
+
+  手写 Mini 事务管理器验证了 Spring 事务三大核心机制：
+  1. AOP 拦截 -- "→ 进入事务切面" / "← 离开事务切面" 对应 TransactionInterceptor.invoke()
+  2. ThreadLocal 连接绑定 -- "复用当前线程的连接" 对应 TransactionSynchronizationManager
+  3. 异常驱动回滚 -- RuntimeException 触发 ROLLBACK，正常返回触发 COMMIT
+  理解了这三点，Spring 事务源码的 80% 逻辑就清楚了。
+  默认只有 RuntimeException 和 Error 才回滚，checked Exception 不回滚（场景三用的是 RuntimeException）。

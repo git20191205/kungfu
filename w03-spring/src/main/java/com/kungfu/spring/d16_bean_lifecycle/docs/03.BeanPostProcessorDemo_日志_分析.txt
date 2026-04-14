@@ -1,0 +1,157 @@
+03.BeanPostProcessorDemo 日志分析
+========================================
+
+整体结果：BFPP 在 Bean 实例化前成功读取 BeanDefinition 元数据，BPP 在初始化前后分别执行日志记录和代理创建，
+         TimingBPP 用 JDK Proxy 包装 helloService，容器最终缓存代理对象 $Proxy10，耗时统计 15900 ns 无侵入生效。
+
+逐步分析：
+
+┌─────────────────────────────────────────────────────┬──────────────────────────────────────────────┬────────────────────────────┐
+│ 步骤                                                │ 结果                                         │ 状态                       │
+├─────────────────────────────────────────────────────┼──────────────────────────────────────────────┼────────────────────────────┤
+│ BFPP: postProcessBeanFactory() 执行                 │ "在所有 Bean 实例化之前执行！"                │ ✅ Bean 实例化前执行       │
+├─────────────────────────────────────────────────────┼──────────────────────────────────────────────┼────────────────────────────┤
+│ BFPP: 读取 BeanDefinition                           │ "可以修改 BeanDefinition"                    │ ✅ 元数据层面操作          │
+├─────────────────────────────────────────────────────┼──────────────────────────────────────────────┼────────────────────────────┤
+│ BFPP: 读取 helloService 作用域                       │ singleton                                    │ ✅ 正确读取 BeanDefinition │
+├─────────────────────────────────────────────────────┼──────────────────────────────────────────────┼────────────────────────────┤
+│ BFPP: 读取 helloService 懒加载                       │ false                                        │ ✅ 默认不懒加载           │
+├─────────────────────────────────────────────────────┼──────────────────────────────────────────────┼────────────────────────────┤
+│ LoggingBPP: postProcessBeforeInitialization()        │ "即将初始化 helloService"                     │ ✅ BPP 前置执行           │
+├─────────────────────────────────────────────────────┼──────────────────────────────────────────────┼────────────────────────────┤
+│ LoggingBPP: postProcessAfterInitialization()         │ "helloService 初始化完成"                     │ ✅ BPP 后置执行           │
+├─────────────────────────────────────────────────────┼──────────────────────────────────────────────┼────────────────────────────┤
+│ TimingBPP: postProcessAfterInitialization()          │ "为 helloService 创建耗时统计代理"            │ ✅ 代理对象生成           │
+├─────────────────────────────────────────────────────┼──────────────────────────────────────────────┼────────────────────────────┤
+│ getBean(HelloService.class) 类型检查                 │ Bean 实际类型: $Proxy10                      │ ✅ 容器缓存的是代理       │
+├─────────────────────────────────────────────────────┼──────────────────────────────────────────────┼────────────────────────────┤
+│ Proxy.isProxyClass() 验证                            │ 是否为代理: true                             │ ✅ JDK 动态代理确认       │
+├─────────────────────────────────────────────────────┼──────────────────────────────────────────────┼────────────────────────────┤
+│ service.sayHello("Spring") 调用                      │ 调用结果: Hello, Spring!                     │ ✅ 代理拦截生效           │
+├─────────────────────────────────────────────────────┼──────────────────────────────────────────────┼────────────────────────────┤
+│ TimingProxy 耗时统计                                 │ sayHello() 耗时: 15900 ns                    │ ✅ 无侵入计时成功         │
+└─────────────────────────────────────────────────────┴──────────────────────────────────────────────┴────────────────────────────┘
+
+重点观察 1 — non-static BFPP 的 INFO 警告日志：
+
+  日志原文：
+    18:07:19.616 [main] INFO  o.s.c.a.ConfigurationClassEnhancer
+    - @Bean method BPPConfig.myBFPP is non-static and returns an object assignable
+      to Spring's BeanFactoryPostProcessor interface. This will result in a failure to
+      process annotations such as @Autowired, @Resource and @PostConstruct within the
+      method's declaring @Configuration class. Add the 'static' modifier to this method
+      to avoid these container lifecycle issues; see @Bean javadoc for complete details.
+
+  为什么 Spring 建议 @Bean 方法返回 BFPP 时加 static？
+
+  原因链：
+    1. BFPP 必须在所有 Bean 实例化之前执行
+    2. 如果 myBFPP() 是非 static 的 @Bean 方法，Spring 必须先实例化 BPPConfig 才能调用它
+    3. 但 BPPConfig 的实例化需要经过完整的 Bean 生命周期（包括 @Autowired 处理）
+    4. 此时 AutowiredAnnotationBeanPostProcessor 可能还没注册完毕
+    5. 结果：BPPConfig 中的 @Autowired / @PostConstruct 可能无法被正确处理
+
+  解决方案：
+    @Bean
+    public static MyBeanFactoryPostProcessor myBFPP() {   // 加 static
+        return new MyBeanFactoryPostProcessor();
+    }
+
+  加 static 后，Spring 不需要实例化 BPPConfig 就能调用这个方法（通过类直接调用静态方法），
+  从而避免了"鸡生蛋蛋生鸡"的循环依赖问题。
+
+  实际影响：
+    本 Demo 中 BPPConfig 没有 @Autowired 字段，所以 INFO 不影响运行结果。
+    但在生产代码中，如果 @Configuration 中有 @Autowired 依赖，non-static BFPP 会导致注入失败。
+
+重点观察 2 — BFPP 读取 BeanDefinition 元数据验证：
+
+  日志原文：
+    [BeanFactoryPostProcessor] 在所有 Bean 实例化之前执行！
+    [BeanFactoryPostProcessor] 可以修改 BeanDefinition
+    [BeanFactoryPostProcessor] helloService 的作用域: singleton
+    [BeanFactoryPostProcessor] helloService 是否懒加载: false
+
+  BFPP 操作的是 BeanDefinition（元数据），不是 Bean 实例：
+    - 此时 helloService 还没有被实例化，只存在于 BeanDefinition 注册表中
+    - BFPP 可以读取、修改这些元数据（如改变 scope、lazy-init、属性值等）
+    - 典型应用：PropertySourcesPlaceholderConfigurer 在 BFPP 阶段替换 ${...} 占位符
+
+  BFPP vs BPP 的执行时机对比（本 Demo 验证的核心时序）：
+    BeanDefinition注册 → BFPP修改BD → Bean实例化 → 属性填充 → BPP前置 → 初始化 → BPP后置
+
+重点观察 3 — Bean 实际类型 $Proxy10 验证代理替换原始对象：
+
+  日志原文：
+    Bean 实际类型: $Proxy10
+    是否为代理: true
+
+  TimingBPP 在 postProcessAfterInitialization() 中的关键操作：
+    返回 Proxy.newProxyInstance(...) → 代理对象替换原始 Bean
+
+  BPP 的 after 方法返回值会替换容器中的 Bean 引用：
+    原始对象：HelloServiceImpl（创建后传入 BPP）
+    代理对象：$Proxy10（BPP 返回后放入单例缓存）
+
+  这就是 AOP 的本质工作方式：
+    1. AnnotationAwareAspectJAutoProxyCreator（Spring 内置 BPP）
+    2. 在 postProcessAfterInitialization() 中检查 Bean 是否匹配切面
+    3. 如果匹配，创建代理（JDK Proxy 或 CGLIB Proxy）
+    4. 返回代理对象，容器缓存代理而非原始对象
+
+  JDK Proxy vs CGLIB Proxy 的选择：
+    - 目标 Bean 实现了接口 → JDK Proxy（本 Demo：HelloService 接口 → $Proxy10）
+    - 目标 Bean 没有接口 → CGLIB Proxy（生成子类）
+    - Spring Boot 2.x+ 默认使用 CGLIB（spring.aop.proxy-target-class=true）
+
+重点观察 4 — 耗时统计 15900 ns，无侵入监控：
+
+  日志原文：
+    [TimingProxy] sayHello() 耗时: 15900 ns
+    调用结果: Hello, Spring!
+
+  通过 BPP 创建代理实现的耗时统计具有以下特点：
+
+  1. 业务代码无感知：
+     HelloServiceImpl.sayHello() 方法没有任何计时逻辑，
+     耗时统计完全由代理层（TimingProxy）透明注入。
+
+  2. 可插拔：
+     只需要注册/移除 TimingBeanPostProcessor，就能开启/关闭耗时统计，
+     不需要修改任何业务代码。
+
+  3. 统一拦截：
+     代理会拦截 HelloService 接口上的所有方法调用，
+     任何新增的接口方法都会自动被计时。
+
+  这就是 AOP "横切关注点"的典型应用场景：
+    日志记录、性能监控、事务管理、权限校验 —— 都可以用同样的方式实现。
+
+重点观察 5 — 多个 BPP 的执行顺序分析：
+
+  日志原文：
+    [LoggingBPP] Before: 即将初始化 helloService
+    [LoggingBPP] After: helloService 初始化完成
+    [TimingBPP] 为 helloService 创建耗时统计代理
+
+  本 Demo 注册了 2 个 BPP：LoggingBPP 和 TimingBPP。
+
+  执行顺序：
+    LoggingBPP.before("helloService")   → 打印"即将初始化"
+    （其他 BPP 的 before...）
+    LoggingBPP.after("helloService")    → 打印"初始化完成"
+    TimingBPP.after("helloService")     → 创建代理，返回 Proxy
+
+  注意：TimingBPP 只重写了 after 方法，没有重写 before 方法。
+  LoggingBPP 的 after 先于 TimingBPP 的 after 执行（按注册顺序）。
+
+  如果 LoggingBPP 也在 after 中创建代理，会出现"代理套代理"的情况。
+  Spring 内置的 AOP BPP（AnnotationAwareAspectJAutoProxyCreator）通过
+  缓存机制（earlyProxyReferences）确保不会对同一个 Bean 创建多层代理。
+
+结论：
+  BFPP 操作 BeanDefinition（元数据层面，实例化之前），BPP 操作 Bean 实例（对象层面，初始化前后），
+  两者的执行时机完全不同。BPP 的 postProcessAfterInitialization() 是 AOP 的核心入口，
+  通过返回代理对象（$Proxy10）替换原始 Bean，实现了对方法调用的无侵入拦截（耗时 15900 ns）。
+  non-static BFPP 会导致 @Configuration 类提前实例化，可能错过 @Autowired 等注解处理，
+  生产代码中应始终使用 static @Bean 方法返回 BFPP。

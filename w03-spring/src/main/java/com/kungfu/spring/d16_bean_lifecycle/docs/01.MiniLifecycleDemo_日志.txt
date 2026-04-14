@@ -1,0 +1,96 @@
+========================================
+   手写模拟 Bean 生命周期 Demo
+========================================
+
+=== 一、Bean 生命周期 4 阶段总览 ===
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                    Bean 完整生命周期                              │
+  ├─────────────────────────────────────────────────────────────────┤
+  │                                                                 │
+  │  阶段一：实例化 (Instantiation)                                 │
+  │    └── 调用构造方法创建 Bean 实例                               │
+  │                         ↓                                       │
+  │  阶段二：属性填充 (Population)                                  │
+  │    ├── @Autowired / @Value 注入                                 │
+  │    └── Aware 接口回调 (BeanNameAware, BeanFactoryAware...)      │
+  │                         ↓                                       │
+  │  阶段三：初始化 (Initialization)                                │
+  │    ├── BeanPostProcessor.postProcessBeforeInitialization()      │
+  │    ├── @PostConstruct                                           │
+  │    ├── InitializingBean.afterPropertiesSet()                    │
+  │    ├── 自定义 init-method                                       │
+  │    └── BeanPostProcessor.postProcessAfterInitialization()       │
+  │                         ↓                                       │
+  │  ★ Bean 就绪，放入单例缓存 ★                                   │
+  │                         ↓                                       │
+  │  阶段四：销毁 (Destruction)                                     │
+  │    ├── @PreDestroy                                              │
+  │    ├── DisposableBean.destroy()                                 │
+  │    └── 自定义 destroy-method                                    │
+  │                                                                 │
+  └─────────────────────────────────────────────────────────────────┘
+
+=== 二、手写模拟完整生命周期 ===
+
+  --- 创建 Bean 过程 ---
+
+  1. [实例化] 调用构造方法 new OrderService()
+    → OrderService 构造方法执行
+  2. [属性填充] 注入依赖属性（@Autowired 字段）
+  3. [Aware回调] setBeanName("orderService")
+    → 我知道自己的名字了: orderService
+  4. [BPP前置] LoggingBeanPostProcessor.postProcessBeforeInitialization()
+    → 前置处理: 可以在此做校验、属性修改等
+  5. [@PostConstruct] postConstruct()
+    → @PostConstruct: 执行自定义初始化逻辑
+  6. [InitializingBean] afterPropertiesSet()
+    → afterPropertiesSet: 属性设置完毕，标记就绪
+  7. [BPP后置] LoggingBeanPostProcessor.postProcessAfterInitialization()  ← AOP代理在此创建
+    → 后置处理: 可以在此创建AOP代理、包装Bean等
+  8. [就绪] Bean "orderService" 创建完成，放入单例缓存
+
+  --- Bean 使用 ---
+
+  OrderService[name=orderService, ready=true]
+
+  --- 容器关闭，执行销毁回调 ---
+
+  [@PreDestroy] orderService.preDestroy()
+    → @PreDestroy: 释放资源
+  [DisposableBean] orderService.destroy()
+    → DisposableBean.destroy: 最终销毁
+
+=== 三、初始化与销毁回调执行顺序 ===
+
+  初始化回调顺序（从先到后）：
+  ┌────┬────────────────────────────────────┬─────────────────────┐
+  │ #  │ 回调方式                           │ 来源                │
+  ├────┼────────────────────────────────────┼─────────────────────┤
+  │ 1  │ BPP.postProcessBeforeInitialization│ BeanPostProcessor   │
+  │ 2  │ @PostConstruct 标注的方法          │ JSR-250 注解        │
+  │ 3  │ InitializingBean.afterPropertiesSet│ Spring 接口         │
+  │ 4  │ 自定义 init-method                 │ XML/注解配置        │
+  │ 5  │ BPP.postProcessAfterInitialization │ BeanPostProcessor   │
+  └────┴────────────────────────────────────┴─────────────────────┘
+
+  销毁回调顺序（从先到后）：
+  ┌────┬────────────────────────────────────┬─────────────────────┐
+  │ #  │ 回调方式                           │ 来源                │
+  ├────┼────────────────────────────────────┼─────────────────────┤
+  │ 1  │ @PreDestroy 标注的方法             │ JSR-250 注解        │
+  │ 2  │ DisposableBean.destroy()           │ Spring 接口         │
+  │ 3  │ 自定义 destroy-method              │ XML/注解配置        │
+  └────┴────────────────────────────────────┴─────────────────────┘
+
+========================================
+   面试速记
+========================================
+
+  1. Bean 生命周期 4 阶段：实例化 → 属性填充 → 初始化 → 销毁
+  2. 初始化回调顺序：@PostConstruct → InitializingBean → init-method
+  3. 销毁回调顺序：@PreDestroy → DisposableBean → destroy-method
+  4. BPP 前置在 @PostConstruct 之前执行
+  5. BPP 后置在所有初始化回调之后执行（AOP 代理在此创建）
+  6. Aware 回调在属性填充之后、BPP 前置之前执行
+

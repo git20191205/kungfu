@@ -1,0 +1,153 @@
+TransactionDemo 日志分析
+========================================
+
+整体结果: 5 个场景全部验证通过，其中场景 3 和场景 5 暴露了 @Transactional 的两大经典坑。
+
+=== 逐步分析 ===
+
+  ┌──────────────────────────────────────────┬───────────────────────────┬──────────┐
+  | 场景                                     | 结果                       | 状态     |
+  ├──────────────────────────────────────────┼───────────────────────────┼──────────┤
+  | 场景 1：正常转账                          | Alice=900.0, Bob=1100.0   | ✅ 提交  |
+  | 场景 2：RuntimeException                  | Alice=900.0, Bob=1100.0   | ✅ 回滚  |
+  | 场景 3：checked Exception（默认不回滚！）  | Alice=700.0, Bob=1100.0   | ⚠ 坑!   |
+  | 场景 4：rollbackFor=Exception.class       | Alice=700.0, Bob=1100.0   | ✅ 回滚  |
+  | 场景 5：this 调用导致事务失效              | Alice=300.0, Bob=1100.0   | ⚠ 坑!   |
+  └──────────────────────────────────────────┴───────────────────────────┴──────────┘
+
+=== 余额变化全链路追踪（引用日志原文中的精确数字） ===
+
+  日志原文逐段：
+    初始：  "当前余额: Alice=1000.0, Bob=1000.0"
+    场景1后："当前余额: Alice=900.0, Bob=1100.0"
+    场景2后："当前余额: Alice=900.0, Bob=1100.0"
+    场景3后："当前余额: Alice=700.0, Bob=1100.0"
+    场景4后："当前余额: Alice=700.0, Bob=1100.0"
+    场景5后："当前余额: Alice=300.0, Bob=1100.0"
+
+  ┌────────┬─────────┬─────────┬────────────────────────────┐
+  | 阶段    | Alice   | Bob     | 变化说明                    |
+  ├────────┼─────────┼─────────┼────────────────────────────┤
+  | 初始    | 1000.0  | 1000.0  | H2 数据库初始化             |
+  | 场景1后 |  900.0  | 1100.0  | Alice -100, Bob +100 提交   |
+  | 场景2后 |  900.0  | 1100.0  | 回滚成功，余额未变化        |
+  | 场景3后 |  700.0  | 1100.0  | Alice -200 被提交，Bob 未变  |
+  | 场景4后 |  700.0  | 1100.0  | 回滚成功，余额未变化        |
+  | 场景5后 |  300.0  | 1100.0  | Alice -400 被提交，Bob 未变  |
+  └────────┴─────────┴─────────┴────────────────────────────┘
+
+  最终结果：Alice=300.0, Bob=1100.0
+  Alice 净损失 = 1000.0 - 300.0 = 700.0
+  Bob 净收入   = 1100.0 - 1000.0 = 100.0
+  凭空消失     = 700.0 - 100.0 = 600.0（场景3 丢失 200 + 场景5 丢失 400）
+
+=== 重点观察 1：场景 1 正常转账 -- 事务提交 ===
+
+  日志原文：
+    === 场景 1：正常转账（应提交） ===
+      ✓ 转账完成
+      当前余额: Alice=900.0, Bob=1100.0
+
+  分析：
+  - @Transactional 方法正常执行，无异常抛出
+  - Spring 自动调用 DataSourceTransactionManager.doCommit()
+  - Alice 从 1000.0 减到 900.0（-100），Bob 从 1000.0 加到 1100.0（+100）
+  - 总额守恒：900.0 + 1100.0 = 2000.0 = 1000.0 + 1000.0 ✅
+
+=== 重点观察 2：场景 2 RuntimeException -- 事务回滚 ===
+
+  日志原文：
+    === 场景 2：RuntimeException（应回滚） ===
+      捕获异常: 模拟异常！
+      当前余额: Alice=900.0, Bob=1100.0
+
+  分析：
+  - 异常消息 "模拟异常！" 说明 RuntimeException 被抛出
+  - 余额从 Alice=900.0, Bob=1100.0 到 Alice=900.0, Bob=1100.0 -- 完全未变化
+  - 回滚成功！RuntimeException 是 unchecked 异常，@Transactional 默认回滚
+  - 源码：DefaultTransactionAttribute.rollbackOn(ex) 判断 ex instanceof RuntimeException → true
+
+=== 重点观察 3：场景 3 checked Exception -- 钱凭空消失！ ===
+
+  日志原文：
+    === 场景 3：checked Exception（默认不回滚！） ===
+      捕获异常: 业务异常！
+      当前余额: Alice=700.0, Bob=1100.0
+      ⚠ 注意: Alice 余额已减少，但 Bob 未增加（非原子！）
+
+  分析：
+  - 异常消息 "业务异常！" 说明这是一个 checked Exception
+  - Alice 从 900.0 变成 700.0（被扣了 200），但 Bob 仍然是 1100.0（没收到钱）
+  - 200 元凭空消失了！原因：
+    1. @Transactional 默认只对 RuntimeException 和 Error 回滚
+    2. checked Exception 不匹配回滚规则 → Spring 执行了 COMMIT 而非 ROLLBACK
+    3. 但异常中断了后续的 Bob +200 操作，所以只有 Alice -200 被提交
+  - 源码：DefaultTransactionAttribute.rollbackOn(Throwable ex) 中：
+      return (ex instanceof RuntimeException || ex instanceof Error);
+    checked Exception 返回 false → 不回滚 → commit
+
+  日志自己也标注了："⚠ 注意: Alice 余额已减少，但 Bob 未增加（非原子！）"
+  这是生产环境最常见的事务 Bug。
+
+=== 重点观察 4：场景 4 rollbackFor -- 修复场景 3 的坑 ===
+
+  日志原文：
+    === 场景 4：rollbackFor=Exception.class（强制回滚） ===
+      捕获异常: 业务异常！
+      当前余额: Alice=700.0, Bob=1100.0
+
+  分析：
+  - 同样抛出 checked Exception（"业务异常！"），但这次余额未变化
+  - Alice 仍然是 700.0，Bob 仍然是 1100.0 -- 回滚成功！
+  - 原因：@Transactional(rollbackFor = Exception.class) 扩大了回滚范围
+  - RuleBasedTransactionAttribute 中添加了 RollbackRuleAttribute(Exception.class)
+  - checked Exception 也匹配规则 → 触发回滚
+
+  这就是场景 3 的修复方案：始终加上 rollbackFor = Exception.class
+
+=== 重点观察 5：场景 5 this 调用 -- 事务形同虚设 ===
+
+  日志原文：
+    === 场景 5：this 调用导致事务失效 ===
+      捕获异常: 内部方法异常，但事务不会生效！
+      当前余额: Alice=300.0, Bob=1100.0
+      ⚠ 注意: 事务未生效，Alice 余额变化未回滚！
+
+  分析：
+  - 异常消息 "内部方法异常，但事务不会生效！" 已经说明问题
+  - Alice 从 700.0 变成 300.0（被扣了 400），但异常没有触发回滚
+  - 日志明确标注 "事务未生效，Alice 余额变化未回滚！"
+  - 原因：this.innerTxMethod() 是 Java 对象直接方法调用，不经过 Spring AOP 代理
+  - 调用链对比：
+      正确：caller → proxy.method() → TransactionInterceptor → target.method()
+      失效：target.outerMethod() → this.innerTxMethod()  // 跳过了代理！
+  - 400 元因事务失效而凭空消失
+
+=== 重点观察 6：Alice 与 Bob 的完整审计轨迹 ===
+
+  Alice 余额变化：
+    1000.0 → 900.0  （场景1，-100，正常转账提交）
+     900.0 → 900.0  （场景2，RuntimeException 回滚，余额不变）
+     900.0 → 700.0  （场景3，-200，checked 异常未回滚 ⚠）
+     700.0 → 700.0  （场景4，rollbackFor 强制回滚，余额不变）
+     700.0 → 300.0  （场景5，-400，this 调用事务失效 ⚠）
+
+  Bob 余额变化：
+    1000.0 → 1100.0 （场景1，+100，正常转账提交）
+    1100.0 → 1100.0 （场景2~5，全部未变化）
+
+  差额分析：
+    Alice 净损失 = 1000.0 - 300.0 = 700.0
+    Bob 净收入   = 1100.0 - 1000.0 = 100.0
+    凭空消失     = 700.0 - 100.0 = 600.0
+    其中：场景3 丢失 200.0 + 场景5 丢失 400.0 = 600.0
+
+=== 结论 ===
+
+  @Transactional 的两大杀手坑在本 Demo 中被真实数据完整暴露：
+  1. checked 异常默认不回滚 -- 场景 3 证实，Alice=700.0 说明 200 元凭空消失
+  2. this 调用不走代理 -- 场景 5 证实，Alice=300.0 说明又丢了 400 元
+  生产环境最佳实践：
+  - 统一使用 @Transactional(rollbackFor = Exception.class)
+  - 禁止同类内部的 @Transactional 方法互调（拆到另一个 @Service 类中）
+  - 关键资金操作增加事务后校验（如余额一致性检查）

@@ -1,0 +1,76 @@
+========================================
+   手写迷你自动装配 Demo
+========================================
+
+=== 一、SpringBoot 自动装配原理 ===
+
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │ @SpringBootApplication                                              │
+  │   ├── @SpringBootConfiguration                                     │
+  │   │     └── @Configuration                                         │
+  │   ├── @EnableAutoConfiguration   ← 自动装配的入口                  │
+  │   │     └── @Import(AutoConfigurationImportSelector.class)          │
+  │   │           └── selectImports() → 读取 spring.factories          │
+  │   │               └── getAutoConfigurationEntry()                   │
+  │   │                     ├── 加载候选自动配置类                      │
+  │   │                     ├── 去重                                    │
+  │   │                     ├── 排除（exclude）                         │
+  │   │                     └── @Conditional 条件过滤                   │
+  │   └── @ComponentScan                                               │
+  └─────────────────────────────────────────────────────────────────────┘
+
+=== 二、模拟自动装配流程 ===
+
+  模拟配置: mini.feature.enabled=false
+
+  --- Step 1: 扫描自动配置类（模拟 spring.factories 加载） ---
+
+  发现 4 个候选自动配置类：
+    - DataSourceAutoConfig
+    - RedisAutoConfig
+    - AlwaysMatchConfig
+    - PropertyBasedConfig
+
+  --- Step 2: 条件过滤（@Conditional 判断） ---
+
+      @ConditionalOnClass("com.zaxxer.hikari.HikariDataSource") → 类不存在 ✗
+    ✗ 跳过 DataSourceAutoConfig
+      @ConditionalOnClass("org.springframework.data.redis.core.RedisTemplate") → 类不存在 ✗
+    ✗ 跳过 RedisAutoConfig
+      @ConditionalOnClass("com.kungfu.spring.d20_springboot.MiniAutoConfigDemo") → 类存在 ✓
+    ✓ 生效 AlwaysMatchConfig
+      @ConditionalOnProperty("mini.feature.enabled"="false", expected="true") → 不匹配 ✗
+    ✗ 跳过 PropertyBasedConfig
+
+  --- Step 3: 注册生效的自动配置 ---
+
+  最终生效 1 个自动配置类
+
+    → AlwaysMatchConfig: 这个自动配置一定生效
+
+=== 三、Mini 与 SpringBoot 真实实现映射 ===
+
+  ┌────────────────────────────┬──────────────────────────────────────────┐
+  │ Mini 实现                  │ SpringBoot 真实实现                       │
+  ├────────────────────────────┼──────────────────────────────────────────┤
+  │ @MiniAutoConfiguration     │ @AutoConfiguration / @Configuration      │
+  │ @MiniConditionalOnClass    │ @ConditionalOnClass                      │
+  │ @MiniConditionalOnProperty │ @ConditionalOnProperty                   │
+  │ candidates 列表            │ META-INF/spring.factories                │
+  │ evaluateConditions()       │ ConditionEvaluator / OnClassCondition    │
+  │ loadAutoConfigurations()   │ AutoConfigurationImportSelector          │
+  │                            │ .getAutoConfigurationEntry()             │
+  └────────────────────────────┴──────────────────────────────────────────┘
+
+========================================
+   面试速记
+========================================
+
+  1. @SpringBootApplication = @Configuration + @EnableAutoConfiguration + @ComponentScan
+  2. @EnableAutoConfiguration → @Import(AutoConfigurationImportSelector)
+  3. AutoConfigurationImportSelector 读取 META-INF/spring.factories (Boot 2.x)
+     或 META-INF/spring/org.springframework...AutoConfiguration.imports (Boot 3.x)
+  4. 加载所有候选 AutoConfiguration，然后按 @Conditional 条件过滤
+  5. 条件注解族：@ConditionalOnClass / OnBean / OnProperty / OnMissingBean ...
+  6. 用户定义的 @Bean 优先于自动配置（@ConditionalOnMissingBean 保证不覆盖）
+

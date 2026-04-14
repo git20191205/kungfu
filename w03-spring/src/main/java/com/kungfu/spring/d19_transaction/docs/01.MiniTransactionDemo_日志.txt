@@ -1,0 +1,74 @@
+========================================
+   手写事务管理器 Demo
+========================================
+
+=== 一、事务管理核心原理 ===
+
+  ┌─────────────────────────────────────────────────────────┐
+  │  业务调用流程                                            │
+  │                                                         │
+  │  业务方法 → AOP 代理 → 事务拦截器                       │
+  │                        ├── 1. begin (获取连接/开启事务)│
+  │                        ├── 2. 执行目标方法              │
+  │                        ├── 3a. 正常 → commit           │
+  │                        └── 3b. 异常 → rollback         │
+  └─────────────────────────────────────────────────────────┘
+
+  关键机制：ThreadLocal 保存连接
+    → 当前线程的多次 DAO 调用共享同一连接
+    → 保证多个 SQL 在同一事务中
+
+=== 二、正常转账（事务应提交） ===
+
+  → 进入事务切面: transfer()
+    [TxManager] 为当前线程创建新连接 Connection-1
+    [Connection-1] BEGIN TRANSACTION
+    [TxManager] 开启新事务（外层）
+    [TxManager] 复用当前线程的连接 Connection-1
+    [Connection-1] 执行 SQL: UPDATE account SET balance=balance-100.0 WHERE name='Alice' (inTx=true)
+    [Connection-1] 执行 SQL: UPDATE account SET balance=balance+100.0 WHERE name='Bob' (inTx=true)
+    [Connection-1] COMMIT
+    [TxManager] 提交事务（外层），清理连接
+  ← 离开事务切面: transfer() [正常]
+
+=== 三、异常转账（事务应回滚） ===
+
+  → 进入事务切面: badTransfer()
+    [TxManager] 为当前线程创建新连接 Connection-2
+    [Connection-2] BEGIN TRANSACTION
+    [TxManager] 开启新事务（外层）
+    [TxManager] 复用当前线程的连接 Connection-2
+    [Connection-2] 执行 SQL: UPDATE account SET balance=balance-100 WHERE name='Alice' (inTx=true)
+    [Connection-2] ROLLBACK
+    [TxManager] 回滚事务
+  ← 离开事务切面: badTransfer() [回滚: RuntimeException]
+  [业务层] 捕获异常: 网络异常！
+
+=== 四、Mini 实现与 Spring 源码映射 ===
+
+  ┌──────────────────────────────┬────────────────────────────────────────────┐
+  │ Mini 实现                    │ Spring 真实实现                            │
+  ├──────────────────────────────┼────────────────────────────────────────────┤
+  │ @MiniTransactional           │ @Transactional                             │
+  │ MiniTransactionManager       │ PlatformTransactionManager                 │
+  │                              │ → DataSourceTransactionManager（JDBC）     │
+  │                              │ → JpaTransactionManager                    │
+  │ CURRENT_CONNECTION           │ TransactionSynchronizationManager.resources│
+  │ (ThreadLocal)                │ (ThreadLocal&lt;Map&lt;Object, Object&gt;&gt;)         │
+  │ 事务代理 InvocationHandler   │ TransactionInterceptor                     │
+  │ begin/commit/rollback        │ TransactionStatus / TransactionDefinition  │
+  └──────────────────────────────┴────────────────────────────────────────────┘
+
+========================================
+   面试速记
+========================================
+
+  1. @Transactional 基于 AOP 实现，本质是方法拦截
+  2. 核心组件:
+     TransactionInterceptor      → 事务拦截器（对应拦截器链中的一环）
+     PlatformTransactionManager  → 事务管理器接口
+     TransactionSynchronizationManager → ThreadLocal 连接绑定
+  3. 连接通过 ThreadLocal 绑定到当前线程，保证方法内使用同一连接
+  4. 默认只有 RuntimeException 和 Error 才回滚，checked Exception 不回滚
+  5. 需要 checked 异常回滚要配置 rollbackFor = Exception.class
+

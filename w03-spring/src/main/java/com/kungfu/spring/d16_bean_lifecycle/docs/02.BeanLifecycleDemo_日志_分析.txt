@@ -1,0 +1,156 @@
+02.BeanLifecycleDemo 日志分析
+========================================
+
+整体结果：真实 Spring 容器验证 12 步回调顺序全部正确，含 3 种 Aware + 初始化三连 + 销毁三连，与手写模拟完全一致。
+
+逐步分析：
+
+┌─────┬─────────────────────────────────────────────────────────────────────┬────────────────────────────────┬────────────┐
+│ 步骤│ 回调                                                                │ 结果                           │ 状态       │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  1  │ 构造方法 new LifecycleBean()                                       │ 实例化完成                     │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  2  │ BeanNameAware.setBeanName("lifecycleBean")                         │ 获得 Bean 名称                 │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  3  │ BeanFactoryAware.setBeanFactory()                                  │ 获得 BeanFactory 引用          │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  4  │ ApplicationContextAware.setApplicationContext()                     │ 获得 ApplicationContext 引用   │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  5  │ BeanPostProcessor.postProcessBeforeInitialization("lifecycleBean") │ BPP 前置回调执行               │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  6  │ @PostConstruct                                                     │ JSR-250 初始化回调执行         │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  7  │ InitializingBean.afterPropertiesSet()                              │ Spring 接口初始化回调执行      │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  8  │ 自定义 init-method: customInit()                                   │ @Bean(initMethod) 指定的方法   │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  9  │ BeanPostProcessor.postProcessAfterInitialization("lifecycleBean")  │ BPP 后置回调（AOP代理入口）    │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│ 使用│ 调用结果: LifecycleBean is working!                                │ Bean 功能正常                  │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│ 10  │ @PreDestroy                                                        │ JSR-250 销毁回调执行           │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│ 11  │ DisposableBean.destroy()                                           │ Spring 接口销毁回调执行        │ ✅ 通过    │
+├─────┼─────────────────────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│ 12  │ 自定义 destroy-method: customDestroy()                             │ @Bean(destroyMethod) 指定的方法│ ✅ 通过    │
+└─────┴─────────────────────────────────────────────────────────────────────┴────────────────────────────────┴────────────┘
+
+重点观察 1 — "not eligible for getting processed by all BeanPostProcessors" 日志解读：
+
+  日志原文：
+    18:07:18.533 [main] INFO  o.s.c.s.PostProcessorRegistrationDelegate$BeanPostProcessorChecker
+    - Bean 'beanLifecycleDemo.LifecycleConfig' of type
+      [com.kungfu.spring.d16_bean_lifecycle.BeanLifecycleDemo$LifecycleConfig$$EnhancerBySpringCGLIB$$cedcf8b8]
+      is not eligible for getting processed by all BeanPostProcessors
+      (for example: not eligible for auto-proxying)
+
+  这条 INFO 日志的含义：
+
+  LifecycleConfig 是一个 @Configuration 类，它通过 @Bean 注册了 LifecycleObserverBPP（一个 BPP）。
+  Spring 在启动时需要先实例化所有的 BeanPostProcessor，然后才能用这些 BPP 处理其他 Bean。
+  但 LifecycleConfig 本身是在注册 BPP 之前就必须被实例化的（因为要调用它的 @Bean 方法来创建 BPP）。
+
+  因此：
+    LifecycleConfig 在 BPP 完全注册之前就被创建了
+    → 后续注册的 BPP 无法对它进行处理（例如 AOP 代理无法增强它）
+    → Spring 打印这条 INFO 提醒开发者
+
+  注意日志中的 "$$EnhancerBySpringCGLIB$$cedcf8b8" 后缀，说明 LifecycleConfig
+  已经被 CGLIB 增强（这是 @Configuration 类的默认行为），但它"逃过了"其他 BPP 的处理。
+
+  生产建议：如果 @Configuration 类需要被 AOP 增强，应避免在同一个类中注册 BPP。
+
+重点观察 2 — Aware 三连顺序验证：BeanNameAware(2) → BeanFactoryAware(3) → ApplicationContextAware(4)：
+
+  日志原文：
+    2. BeanNameAware.setBeanName("lifecycleBean")
+    3. BeanFactoryAware.setBeanFactory()
+    4. ApplicationContextAware.setApplicationContext()
+
+  三种 Aware 接口的执行顺序是固定的，由 Spring 源码中的硬编码顺序决定
+  （AbstractAutowireCapableBeanFactory.invokeAwareMethods()）。
+
+  各 Aware 的作用：
+    - BeanNameAware：获取 Bean 在容器中的名称（本例为 "lifecycleBean"）
+    - BeanFactoryAware：获取 BeanFactory 引用，可用于动态获取其他 Bean
+    - ApplicationContextAware：获取 ApplicationContext，可用于发布事件、获取环境变量等
+
+  前两个（BeanName + BeanFactory）在 invokeAwareMethods() 中直接处理，
+  ApplicationContextAware 由 ApplicationContextAwareProcessor（一个 BPP）处理，
+  但因为该 BPP 注册较早，所以在自定义 BPP 前置之前就完成了。
+
+重点观察 3 — 初始化三连顺序：@PostConstruct(6) → afterPropertiesSet(7) → customInit(8)：
+
+  日志原文：
+    6. @PostConstruct
+    7. InitializingBean.afterPropertiesSet()
+    8. 自定义 init-method: customInit()
+
+  这三个初始化回调的执行顺序固定，背后的原因：
+
+  1. @PostConstruct（步骤 6）：
+     由 CommonAnnotationBeanPostProcessor 在 postProcessBeforeInitialization() 中触发。
+     虽然步骤 5 是自定义 BPP 前置，步骤 6 才是 @PostConstruct，
+     但实际上两者都在 applyBeanPostProcessorsBeforeInitialization() 循环中执行，
+     只是不同 BPP 的调用顺序不同。
+
+  2. afterPropertiesSet()（步骤 7）：
+     在所有 BPP.before 执行完毕后，Spring 调用 invokeInitMethods()，
+     先检查 InitializingBean 接口并调用 afterPropertiesSet()。
+
+  3. customInit()（步骤 8）：
+     在 afterPropertiesSet() 之后，Spring 通过反射调用 @Bean(initMethod="customInit") 指定的方法。
+
+  源码调用链（AbstractAutowireCapableBeanFactory.initializeBean()）：
+    applyBeanPostProcessorsBeforeInitialization()   → 步骤 5 + 6
+    invokeInitMethods()                              → 步骤 7 + 8
+    applyBeanPostProcessorsAfterInitialization()     → 步骤 9
+
+重点观察 4 — 销毁三连顺序：@PreDestroy(10) → destroy(11) → customDestroy(12)：
+
+  日志原文：
+    10. @PreDestroy
+    11. DisposableBean.destroy()
+    12. 自定义 destroy-method: customDestroy()
+
+  销毁回调与初始化回调完全镜像：
+    初始化：@PostConstruct    → afterPropertiesSet() → customInit()
+    销毁：  @PreDestroy       → destroy()            → customDestroy()
+
+  优先级始终为：JSR-250 注解 > Spring 接口 > 自定义方法。
+
+  注意：prototype 作用域的 Bean 不会执行销毁回调（容器不管理其完整生命周期）。
+
+重点观察 5 — Mini 版 8 步 vs 真实 Spring 12 步的差异对照：
+
+  ┌────────────────────────────┬────────────────────────────────────────────────┐
+  │ Mini 版（8 步）            │ 真实 Spring（12 步）                           │
+  ├────────────────────────────┼────────────────────────────────────────────────┤
+  │ 1. 实例化                  │ 1. 构造方法                                    │
+  │ 2. 属性填充                │   （属性填充在构造和 Aware 之间，日志未显示）   │
+  │ 3. Aware（合并为 1 步）    │ 2. BeanNameAware                               │
+  │                            │ 3. BeanFactoryAware                            │
+  │                            │ 4. ApplicationContextAware                     │
+  │ 4. BPP前置                 │ 5. BPP前置                                     │
+  │ 5. @PostConstruct          │ 6. @PostConstruct                              │
+  │ 6. InitializingBean        │ 7. InitializingBean                            │
+  │   （无 init-method）       │ 8. 自定义 init-method                          │
+  │ 7. BPP后置                 │ 9. BPP后置                                     │
+  │ 8. 就绪                    │   （就绪）                                     │
+  │ @PreDestroy                │ 10. @PreDestroy                                │
+  │ DisposableBean             │ 11. DisposableBean                             │
+  │   （无 destroy-method）    │ 12. 自定义 destroy-method                      │
+  └────────────────────────────┴────────────────────────────────────────────────┘
+
+  差异总结：
+    1. Aware 回调：Mini 合并为 1 步，真实 Spring 拆分为 BeanName + BeanFactory + ApplicationContext 三步
+    2. init-method / destroy-method：Mini 版没有，真实 Spring 通过 @Bean 注解或 XML 配置支持
+    3. 属性填充：Mini 版显式打印，真实 Spring 在构造后自动完成（日志不显示）
+
+结论：
+  真实 Spring 的 12 步回调顺序完全验证了手写模拟的正确性。面试中最关键的"三个三连"：
+    Aware 三连：BeanNameAware → BeanFactoryAware → ApplicationContextAware
+    初始化三连：@PostConstruct → afterPropertiesSet() → init-method
+    销毁三连：@PreDestroy → destroy() → destroy-method
+  再加上 BPP 前置/后置的位置（包裹在初始化三连外围），以及 $$EnhancerBySpringCGLIB$$ 提前实例化的
+  INFO 日志含义，就能完整回答 Bean 生命周期的所有面试问题。

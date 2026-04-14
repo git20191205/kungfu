@@ -1,0 +1,85 @@
+========================================
+   JDK 动态代理 vs CGLIB 代理 Demo
+========================================
+
+=== 一、JDK 动态代理 ===
+
+  条件：目标类必须实现接口
+  原理：运行时生成 $Proxy0 类，实现目标接口，内部委托 InvocationHandler
+
+  调用代理方法:
+    [JDK Proxy] 前置: pay 开始
+    [PayService] 执行支付: orderId=ORD-001, amount=99.9
+    [JDK Proxy] 后置: pay 结束
+  返回: PAY-SUCCESS
+
+  代理对象信息:
+    代理类名: com.kungfu.spring.d18_aop.$Proxy0
+    是否为接口实例: true
+    是否为实现类实例: false
+
+=== 二、CGLIB 代理 ===
+
+  条件：目标类不能是 final 类
+  原理：运行时通过 ASM 生成目标类的子类，重写目标方法
+
+  调用代理方法:
+    [CGLIB Proxy] 前置: send 开始
+    [NotificationService] 发送通知: 订单已发货
+    [CGLIB Proxy] 后置: send 结束
+  返回: SENT
+
+  代理对象信息:
+    代理类名: com.kungfu.spring.d18_aop.ProxyPatternDemo$NotificationService$$EnhancerByCGLIB$$5f126743
+    是否为原始类实例: true
+    父类: NotificationService
+
+=== 三、JDK Proxy vs CGLIB 对比 ===
+
+  ┌──────────────┬─────────────────────────┬───────────────────────────┐
+  │ 对比项       │ JDK 动态代理            │ CGLIB 代理                │
+  ├──────────────┼─────────────────────────┼───────────────────────────┤
+  │ 实现方式     │ 基于接口（Proxy类）     │ 基于继承（ASM字节码）     │
+  │ 要求         │ 目标类必须有接口        │ 目标类不能是 final         │
+  │ 代理对象关系 │ 实现相同接口            │ 目标类的子类              │
+  │ 拦截方式     │ InvocationHandler       │ MethodInterceptor         │
+  │ 依赖         │ JDK 内置                │ 需要引入 cglib 库         │
+  │ final 方法   │ 不影响（接口无 final）  │ final 方法无法代理        │
+  │ 创建速度     │ 较快                    │ 较慢（字节码生成）        │
+  │ 调用速度     │ 反射调用                │ FastClass 直接调用        │
+  └──────────────┴─────────────────────────┴───────────────────────────┘
+
+=== 四、Spring 代理选择策略 ===
+
+  Spring 选择代理方式的决策树：
+
+    proxyTargetClass = true ?
+    ├── 是 → 使用 CGLIB（SpringBoot 2.0+ 默认）
+    └── 否
+         ├── 目标类实现了接口？
+         │   ├── 是 → 使用 JDK Proxy
+         │   └── 否 → 使用 CGLIB
+         └── 目标类是 final？
+              └── 是 → 无法代理，抛出异常
+
+  配置方式：
+  ─────────────────────────────────────────────────────────────
+  // 注解方式（默认 proxyTargetClass=false）
+  @EnableAspectJAutoProxy(proxyTargetClass = true)
+
+  // SpringBoot 配置（默认 true）
+  spring.aop.proxy-target-class=true
+  ─────────────────────────────────────────────────────────────
+
+========================================
+   面试速记
+========================================
+
+  1. JDK Proxy: 基于接口，反射调用 InvocationHandler，Java 原生
+  2. CGLIB: 基于子类继承，ASM 生成字节码，第三方库
+  3. Spring 5 / SpringBoot 2.x+ 默认 proxyTargetClass=true（CGLIB）
+  4. CGLIB 无法代理 final 类和 final 方法
+  5. JDK Proxy 的代理对象实现了目标接口，可以强转为接口类型
+  6. CGLIB 代理对象是目标类的子类，可以强转为目标类类型
+  7. 性能: JDK 17+ 中 JDK Proxy 已经优化很好，差距不大
+

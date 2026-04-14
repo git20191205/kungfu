@@ -1,0 +1,62 @@
+========================================
+   BeanPostProcessor 扩展机制 Demo
+========================================
+
+=== 一、BeanFactoryPostProcessor vs BeanPostProcessor ===
+
+  ┌───────────────┬─────────────────────────────┬─────────────────────────────────┐
+  │ 对比项        │ BeanFactoryPostProcessor    │ BeanPostProcessor               │
+  ├───────────────┼─────────────────────────────┼─────────────────────────────────┤
+  │ 执行时机      │ Bean 实例化之前             │ Bean 初始化前后                 │
+  │ 操作对象      │ BeanDefinition（元数据）    │ Bean 实例（对象）               │
+  │ 方法数量      │ 1 个                        │ 2 个（before + after）          │
+  │ 典型用途      │ 修改属性值、改变作用域      │ AOP代理、注入、校验             │
+  │ 执行次数      │ 1 次（容器启动时）          │ 每个 Bean 初始化都会调用        │
+  └───────────────┴─────────────────────────────┴─────────────────────────────────┘
+
+  执行时序：
+  BeanDefinition注册 → BFPP修改BD → Bean实例化 → 属性填充 → BPP前置 → 初始化 → BPP后置
+
+=== 二、真实 Spring 容器验证 ===
+
+18:07:19.616 [main] INFO  o.s.c.a.ConfigurationClassEnhancer - @Bean method BPPConfig.myBFPP is non-static and returns an object assignable to Spring's BeanFactoryPostProcessor interface. This will result in a failure to process annotations such as @Autowired, @Resource and @PostConstruct within the method's declaring @Configuration class. Add the 'static' modifier to this method to avoid these container lifecycle issues; see @Bean javadoc for complete details.
+  [BeanFactoryPostProcessor] 在所有 Bean 实例化之前执行！
+  [BeanFactoryPostProcessor] 可以修改 BeanDefinition
+  [BeanFactoryPostProcessor] helloService 的作用域: singleton
+  [BeanFactoryPostProcessor] helloService 是否懒加载: false
+
+  [LoggingBPP] Before: 即将初始化 helloService
+  [LoggingBPP] After: helloService 初始化完成
+  [TimingBPP] 为 helloService 创建耗时统计代理
+
+  --- 调用被代理的 Bean ---
+
+  Bean 实际类型: $Proxy10
+  是否为代理: true
+    [TimingProxy] sayHello() 耗时: 15900 ns
+  调用结果: Hello, Spring!
+
+=== 三、Spring 内置重要 BeanPostProcessor ===
+
+  ┌────────────────────────────────────────────┬──────────────────────────────────┐
+  │ BPP 实现类                                │ 功能                              │
+  ├────────────────────────────────────────────┼──────────────────────────────────┤
+  │ AutowiredAnnotationBeanPostProcessor      │ 处理 @Autowired / @Value          │
+  │ CommonAnnotationBeanPostProcessor         │ 处理 @PostConstruct / @PreDestroy │
+  │ AnnotationAwareAspectJAutoProxyCreator    │ 创建 AOP 代理对象                 │
+  │ AsyncAnnotationBeanPostProcessor          │ 处理 @Async 异步方法              │
+  │ ScheduledAnnotationBeanPostProcessor      │ 处理 @Scheduled 定时任务          │
+  │ PersistenceAnnotationBeanPostProcessor    │ 处理 @PersistenceContext（JPA）   │
+  └────────────────────────────────────────────┴──────────────────────────────────┘
+
+========================================
+   面试速记
+========================================
+
+  1. BeanFactoryPostProcessor: 修改 BeanDefinition（实例化前）
+  2. BeanPostProcessor: 增强 Bean 实例（初始化前后）
+  3. BFPP 经典实现: PropertySourcesPlaceholderConfigurer（处理 ${...}）
+  4. BPP 经典实现: AutowiredAnnotationBeanPostProcessor（处理 @Autowired）
+  5. AOP 代理通过 AnnotationAwareAspectJAutoProxyCreator（BPP）在后置回调中创建
+  6. BPP 的 postProcessAfterInitialization 返回代理对象时，容器缓存的是代理对象
+

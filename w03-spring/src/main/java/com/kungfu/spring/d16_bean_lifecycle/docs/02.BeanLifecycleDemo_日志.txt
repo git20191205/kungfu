@@ -1,0 +1,51 @@
+========================================
+   真实 Spring Bean 生命周期 Demo
+========================================
+
+=== Bean 生命周期回调顺序（真实 Spring 验证） ===
+
+  --- 容器启动 ---
+
+18:07:18.533 [main] INFO  o.s.c.s.PostProcessorRegistrationDelegate$BeanPostProcessorChecker - Bean 'beanLifecycleDemo.LifecycleConfig' of type [com.kungfu.spring.d16_bean_lifecycle.BeanLifecycleDemo$LifecycleConfig$$EnhancerBySpringCGLIB$$cedcf8b8] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying)
+   1. 构造方法 new LifecycleBean()
+   2. BeanNameAware.setBeanName("lifecycleBean")
+   3. BeanFactoryAware.setBeanFactory()
+   4. ApplicationContextAware.setApplicationContext()
+   5. BeanPostProcessor.postProcessBeforeInitialization("lifecycleBean")
+   6. @PostConstruct
+   7. InitializingBean.afterPropertiesSet()
+   8. 自定义 init-method: customInit()
+   9. BeanPostProcessor.postProcessAfterInitialization("lifecycleBean")  ← AOP代理在此生成
+
+  --- Bean 使用 ---
+
+  调用结果: LifecycleBean is working!
+
+  --- 容器关闭 ---
+
+  10. @PreDestroy
+  11. DisposableBean.destroy()
+  12. 自定义 destroy-method: customDestroy()
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │ 总结：完整回调顺序                                           │
+  │                                                              │
+  │ 构造方法 → BeanNameAware → BeanFactoryAware                 │
+  │ → ApplicationContextAware → BPP前置                         │
+  │ → @PostConstruct → InitializingBean → init-method           │
+  │ → BPP后置(AOP代理) → Bean就绪                               │
+  │                                                              │
+  │ @PreDestroy → DisposableBean → destroy-method               │
+  └──────────────────────────────────────────────────────────────┘
+
+========================================
+   面试速记
+========================================
+
+  1. Aware 接口回调在 BPP 前置之前执行
+  2. @PostConstruct 实际上是通过 CommonAnnotationBeanPostProcessor 实现的
+  3. 初始化三连：@PostConstruct → afterPropertiesSet() → init-method
+  4. 销毁三连：@PreDestroy → destroy() → destroy-method
+  5. AOP 代理对象在 BPP 后置回调中创建（AnnotationAwareAspectJAutoProxyCreator）
+  6. prototype 作用域的 Bean 不会执行销毁回调（容器不管理其生命周期）
+

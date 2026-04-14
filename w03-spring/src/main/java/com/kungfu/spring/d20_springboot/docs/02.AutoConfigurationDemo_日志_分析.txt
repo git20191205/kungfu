@@ -1,0 +1,126 @@
+========================================
+   AutoConfigurationDemo 日志分析
+========================================
+
+=== 整体结果 ===
+
+  SpringFactoriesLoader 加载自动配置类数量为 0（项目未注册 EnableAutoConfiguration 条目，符合预期），
+  @ConditionalOnMissingBean 兜底机制验证通过 -- 用户未定义 GreetingService 时默认实现生效。
+
+=== 逐步分析 ===
+
+  ┌──────┬─────────────────────────────────────────────────────────────────┬────────┐
+  │ 步骤 │ 结果                                                            │ 状态   │
+  ├──────┼─────────────────────────────────────────────────────────────────┼────────┤
+  │ 一   │ SpringFactoriesLoader 共加载 0 个自动配置类                      │ ✅ 预期│
+  ├──────┼─────────────────────────────────────────────────────────────────┼────────┤
+  │ 二   │ @ConditionalOnMissingBean 生效，DefaultGreetingService 被注册    │ ✅ 正确│
+  ├──────┼─────────────────────────────────────────────────────────────────┼────────┤
+  │ 三   │ 自定义 Starter 模板结构展示                                      │ ✅ 展示│
+  ├──────┼─────────────────────────────────────────────────────────────────┼────────┤
+  │ 四   │ spring.factories -> .imports 文件演进说明                        │ ✅ 展示│
+  └──────┴─────────────────────────────────────────────────────────────────┴────────┘
+
+=== 重点观察 1 -- 为什么加载 0 个自动配置类 ===
+
+  日志关键行：
+    "SpringFactoriesLoader.loadFactoryNames() 加载 spring.factories 内容："
+    "共加载 0 个自动配置类"
+    "前 10 个示例："
+    （后面没有列出任何类名）
+
+  这不是 Bug，而是项目依赖结构决定的：
+    - 代码调用 SpringFactoriesLoader.loadFactoryNames(EnableAutoConfiguration.class, ...)
+    - 该方法扫描 classpath 下所有 JAR 的 META-INF/spring.factories
+    - 查找 key = org.springframework.boot.autoconfigure.EnableAutoConfiguration 的条目
+    - 本项目只引入了 spring-boot-autoconfigure（包含条件注解和工具类），
+      没有以 @SpringBootApplication 方式启动，classpath 中没有任何 JAR 在
+      spring.factories 注册了 EnableAutoConfiguration，所以返回 0
+
+  在真实 SpringBoot 项目中，引入 spring-boot-starter 后：
+    - Boot 2.7.x：spring.factories 中注册约 144 个候选自动配置类
+    - Boot 3.x：.imports 文件中注册约 150+ 个候选自动配置类
+    - 经过 @Conditional 条件过滤后，通常只有 20-30 个真正生效
+
+  SpringFactoriesLoader.loadFactoryNames() 的工作原理：
+    1. 扫描 classpath 下所有 JAR 的 META-INF/spring.factories
+    2. 查找 key = EnableAutoConfiguration 对应的 value 列表
+    3. 去重后返回全限定类名列表
+
+=== 重点观察 2 -- @ConditionalOnMissingBean 兜底机制 ===
+
+  日志关键行：
+    "[AutoConfig] 用户未定义 GreetingService，使用默认实现"
+    "Bean 类型: DefaultGreetingService"
+    "调用结果: Hello, SpringBoot! (from default auto-config)"
+
+  这三行完整展示了 @ConditionalOnMissingBean 的核心行为：
+
+  1. GreetingAutoConfiguration 中的 greetingService() 标注了
+     @ConditionalOnMissingBean(GreetingService.class)
+  2. UserConfig 中的 @Bean 被注释掉了（用户没有自定义 GreetingService）
+  3. 容器发现不存在 GreetingService 类型的 Bean -> 条件满足 -> 注册 DefaultGreetingService
+  4. 最终 Bean 类型是 DefaultGreetingService，调用 greet("SpringBoot") 返回默认消息
+
+  如果取消 UserConfig 中 @Bean 的注释，用户定义的 CustomGreetingService 会先被注册，
+  此时 @ConditionalOnMissingBean 条件不满足，自动配置的默认实现不会生效。
+  这就是"用户配置优先于自动配置"的原理。
+
+  配置优先级链：
+    用户 @Bean  >  自动配置 @Bean（@ConditionalOnMissingBean）  >  默认值
+
+=== 重点观察 3 -- 自定义 Starter 的标准结构 ===
+
+  日志中展示的项目模板：
+    "┌── xxx-spring-boot-starter/        <- 空壳 Starter（只有 pom 依赖）
+     │    └── pom.xml
+     │         └── dependency: xxx-spring-boot-autoconfigure
+     │
+     └── xxx-spring-boot-autoconfigure/  <- 自动配置逻辑
+          ├── src/main/java/
+          │    ├── XxxAutoConfiguration.java
+          │    └── XxxProperties.java
+          └── src/main/resources/
+               └── META-INF/spring.factories"
+
+  自定义 Starter 三件套：
+    1. xxx-spring-boot-starter -- 空壳模块，只声明对 autoconfigure 模块的依赖
+    2. xxx-spring-boot-autoconfigure -- 自动配置逻辑，包含 @Configuration 类
+    3. META-INF/spring.factories -- 注册自动配置类的全限定名
+
+  XxxAutoConfiguration 模板中的关键注解组合：
+    @Configuration                         -> 声明为配置类
+    @ConditionalOnClass(XxxService.class)  -> classpath 有对应类时才生效
+    @EnableConfigurationProperties         -> 绑定 application.yml 配置
+    @Bean + @ConditionalOnMissingBean      -> 用户未自定义时提供默认实现
+
+=== 重点观察 4 -- spring.factories 到 .imports 文件的演进 ===
+
+  日志中展示的版本对比表：
+    Boot 2.x:  META-INF/spring.factories (key = EnableAutoConfiguration)
+    Boot 2.7:  两种方式并存（过渡版本）
+    Boot 3.x:  META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
+
+  Boot 3.x 弃用 spring.factories 的原因：
+    1. spring.factories 是通用 SPI 机制，不只用于自动配置，key-value 格式混杂
+    2. .imports 文件是纯文本，每行一个配置类全限定名，更简洁
+    3. 加载性能更好 -- 不需要解析 key-value，直接按行读取
+
+  迁移提示：如果你维护的自定义 Starter 还在用 spring.factories，
+  升级到 Boot 3.x 时必须迁移到 .imports 文件，否则自动配置不会被加载。
+
+=== 与 MiniAutoConfigDemo 的对照 ===
+
+  MiniAutoConfigDemo 手写的 candidates 列表 -> 对应 SpringFactoriesLoader 加载的结果
+  MiniAutoConfigDemo 的 evaluateConditions() -> 对应 ConditionEvaluator 的真实判断
+  本 Demo 验证了真实 Spring 容器中 @ConditionalOnMissingBean 的行为与手写模拟一致
+
+=== 结论 ===
+
+  本 Demo 验证了真实 SpringBoot 自动装配的两个关键点：
+  1. SpringFactoriesLoader 是自动配置类的加载入口（本项目返回 0 是因为没有以
+     SpringBoot 应用方式启动，但 loadFactoryNames 机制本身正确）；
+  2. @ConditionalOnMissingBean 确保了"用户配置优先" -- 用户不定义 Bean 时自动配置
+     提供默认实现（DefaultGreetingService），用户定义后自动配置静默退让。
+  这两个机制加上自定义 Starter 的标准结构，就是实际开发中编写和使用 SpringBoot
+  自动配置的全部核心知识。

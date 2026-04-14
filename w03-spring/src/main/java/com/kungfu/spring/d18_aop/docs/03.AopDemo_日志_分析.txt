@@ -1,0 +1,160 @@
+03.AopDemo 日志分析
+========================================================================
+
+整体结果：真实 Spring AOP 环境下 5 种通知按预期顺序执行，CGLIB 代理生效，正常/异常路径均正确。
+
+逐步分析：
+┌──────────────────────────────────┬──────────────────────────────────────────────────────┬───────────────────────┐
+│              场景                │                        结果                          │         状态          │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常: @Around-前                 │ [@Around-前] findUser 环绕开始                        │ ✅ 最外层进入         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常: @Before                    │ [@Before] findUser 即将执行                           │ ✅ 方法执行前         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常: 目标方法                   │ [UserService] 查询用户: 1001                          │ ✅ 业务逻辑执行       │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常: @AfterReturning            │ [@AfterReturning] findUser 正常返回: User-1001        │ ✅ 拿到返回值         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常: @After                     │ [@After] findUser 已执行（finally）                   │ ✅ finally 保证执行   │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常: @Around-后                 │ [@Around-后] findUser 环绕结束，耗时=5ms              │ ✅ 最外层退出         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 异常: @Around-前                 │ [@Around-前] deleteUser 环绕开始                      │ ✅ 同正常场景         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 异常: @Before                    │ [@Before] deleteUser 即将执行                         │ ✅ 同正常场景         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 异常: 目标方法抛异常              │ [UserService] 删除用户: 9999                          │ ✅ 业务异常触发       │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 异常: @AfterThrowing             │ [@AfterThrowing] deleteUser 抛出异常: 删除失败...     │ ✅ 异常通知触发       │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 异常: @After                     │ [@After] deleteUser 已执行（finally）                 │ ✅ finally 保证执行   │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 异常: @Around-后                 │ [@Around-后] deleteUser 环绕结束，耗时=0ms            │ ✅ finally 中打印     │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 代理对象                         │ $$EnhancerBySpringCGLIB$$6f993008                    │ ✅ CGLIB 代理         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ Pointcut 表达式参考表             │ 5 种常用表达式完整输出                                │ ✅ 速查完整           │
+└──────────────────────────────────┴──────────────────────────────────────────────────────┴───────────────────────┘
+
+重点观察 1 -- 正常调用 Spring AOP 通知完整执行顺序：
+
+  日志原文：
+    [@Around-前] findUser 环绕开始
+    [@Before] findUser 即将执行
+    [UserService] 查询用户: 1001
+    [@AfterReturning] findUser 正常返回: User-1001
+    [@After] findUser 已执行（finally）
+    [@Around-后] findUser 环绕结束，耗时=5ms
+
+  最终结果: User-1001
+
+  分析：
+  - 执行顺序：Around前 -> Before -> 目标方法 -> AfterReturning -> After -> Around后
+  - 这与 Spring 5 的标准通知执行顺序完全一致
+  - findUser 查询用户 1001，正常返回 User-1001
+  - AfterReturning 正确拿到返回值 User-1001
+  - Around 记录耗时 5ms，包含了整个拦截器链的执行时间
+  - After 在 AfterReturning 之后、Around后半段之前执行，符合 finally 语义
+
+重点观察 2 -- 异常调用 AfterThrowing 路径：
+
+  日志原文：
+    [@Around-前] deleteUser 环绕开始
+    [@Before] deleteUser 即将执行
+    [UserService] 删除用户: 9999
+    [@AfterThrowing] deleteUser 抛出异常: 删除失败: 用户 9999 不存在
+    [@After] deleteUser 已执行（finally）
+    [@Around-后] deleteUser 环绕结束，耗时=0ms
+
+  捕获异常: 删除失败: 用户 9999 不存在
+
+  分析：
+  - deleteUser(9999) 触发了业务异常"删除失败: 用户 9999 不存在"
+  - AfterThrowing 正确捕获了完整异常信息，替代了 AfterReturning
+  - After（finally）仍然执行，证实了无论正常还是异常都会触发
+  - Around 后半段也执行了（耗时=0ms），说明 Around 通知内部有 try-finally 处理
+  - 与 Demo01 手写代理的异常场景不同 -- 手写版 Around 后半段未执行
+  - 差异原因：真实 Spring AOP 的 Around 通知使用了 try-finally 包裹 proceed()
+
+重点观察 3 -- AfterThrowing 异常信息对比（手写 vs Spring）：
+
+  手写版（Demo01）：
+    [AfterThrowing] 方法抛出异常: null         <-- getMessage() 返回 null
+
+  Spring 真实版（Demo03）：
+    [@AfterThrowing] deleteUser 抛出异常: 删除失败: 用户 9999 不存在   <-- 完整异常信息
+
+  原因：
+  Spring 的 ReflectiveMethodInvocation 会自动解包 InvocationTargetException，
+  所以 @AfterThrowing 能直接拿到原始异常及其 message。
+  手写版没有做解包处理，拿到的是包装异常，getMessage() 为 null。
+
+重点观察 4 -- 正常 vs 异常执行路径对比：
+
+  正常（findUser）：
+    @Around前 -> @Before -> 目标方法 -> @AfterReturning -> @After -> @Around后
+
+  异常（deleteUser）：
+    @Around前 -> @Before -> 目标方法抛异常 -> @AfterThrowing -> @After -> @Around后
+
+  核心区别仅在第 4 步：正常走 AfterReturning，异常走 AfterThrowing。
+  After 和 Around后 在两条路径中都执行了。
+
+  注意 Spring 4 vs Spring 5 的顺序差异：
+  ┌──────────┬──────────────────────────────────────────────────────────────┐
+  │ 版本     │ 正常场景顺序                                               │
+  ├──────────┼──────────────────────────────────────────────────────────────┤
+  │ Spring 4 │ Around前 -> Before -> 目标 -> Around后 -> After -> AfterReturning │
+  │ Spring 5 │ Around前 -> Before -> 目标 -> AfterReturning -> After -> Around后 │
+  └──────────┴──────────────────────────────────────────────────────────────┘
+  Spring 5 调整后更符合直觉：AfterReturning 紧跟在目标方法返回之后。
+
+重点观察 5 -- CGLIB 代理对象验证：
+
+  日志原文：
+    Bean 类名: com.kungfu.spring.d18_aop.AopDemo$UserService$$EnhancerBySpringCGLIB$$6f993008
+    是否为 CGLIB 代理: true
+    父类: UserService
+
+  分析：
+  - 代理类名包含 $$EnhancerBySpringCGLIB$$ 标识（注意与 Demo02 中 $$EnhancerByCGLIB$$ 不同）
+  - Spring 使用了内嵌的 CGLIB 版本（spring-core 中 repackage），多了 "Spring" 前缀
+  - 哈希值 6f993008 是运行时生成的
+  - 父类为 UserService，确认了 CGLIB 通过继承创建代理
+  - SpringBoot 默认 proxyTargetClass=true，即使有接口也使用 CGLIB
+
+重点观察 6 -- Pointcut 表达式速查：
+
+  日志中给出了 5 种常用 Pointcut 表达式：
+    execution(* com.xxx.service.*.*(..))                -> service 包所有方法
+    execution(public * com.xxx..*.*(..))                -> com.xxx 下所有 public 方法
+    @annotation(com.xxx.Log)                            -> 标注 @Log 的方法
+    @within(org.springframework.stereotype.Service)     -> @Service 类的所有方法
+    bean(userService)                                   -> 名为 userService 的 Bean
+
+  注意：bean() 是 Spring 扩展的切点表达式，标准 AspectJ 不支持。
+
+重点观察 7 -- 与 MiniAopDemo（手写版）的对比：
+
+  ┌──────────────────┬──────────────────────────────────┬──────────────────────────────────┐
+  │ 对比项           │ MiniAopDemo（手写版）             │ AopDemo（Spring 真实版）          │
+  ├──────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+  │ 代理方式         │ JDK Proxy                        │ Spring CGLIB（默认）              │
+  │ 拦截器链实现     │ 手写 MiniMethodInvocation        │ ReflectiveMethodInvocation       │
+  │ 异常解包         │ 不解包（拿到 null）              │ 自动解包（拿到原始异常信息）      │
+  │ Around 异常处理  │ 异常直接抛出，后半段不执行        │ try-finally 保证后半段执行        │
+  │ After 顺序       │ After 在 AfterReturning 之前     │ AfterReturning 在 After 之前     │
+  │ Pointcut         │ 拦截所有方法                     │ execution() 表达式精确匹配        │
+  │ 通知排序         │ 由链中位置决定                   │ Spring 内部策略 + @Order 决定     │
+  └──────────────────┴──────────────────────────────────┴──────────────────────────────────┘
+
+  核心原理相同：proceed() 递归 + 责任链模式。
+  Spring 在此基础上增加了排序策略、异常解包、Pointcut 匹配等生产级能力。
+
+结论：
+  真实 Spring AOP 的行为与手写 MiniAopDemo 核心原理一致，
+  证明了 proceed() 递归调用 + 拦截器链就是 AOP 的核心机制。
+  Spring 5 的通知顺序（AfterReturning 在 After 之前）更符合直觉。
+  CGLIB 代理类名中 $$EnhancerBySpringCGLIB$$ 是 Spring 内嵌 CGLIB 的标志。
+  生产环境中 @Around + try-finally 是实现方法耗时统计的最佳实践。
+  面试重点：通知执行顺序、this 调用不走代理的陷阱、@EnableAspectJAutoProxy 的注册机制。

@@ -1,0 +1,127 @@
+01.MiniLifecycleDemo 日志分析
+========================================
+
+整体结果：手写模拟 8 步创建 + 2 步销毁完整覆盖 Bean 生命周期，所有回调按预期顺序执行，Bean 状态 ready=true 验证正确。
+
+逐步分析：
+
+┌─────┬───────────────────────────────────────────────────────┬────────────────────────────────┬────────────┐
+│ 步骤│ 操作                                                  │ 结果                           │ 状态       │
+├─────┼───────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  1  │ [实例化] 调用构造方法 new OrderService()               │ "OrderService 构造方法执行"    │ ✅ 通过    │
+├─────┼───────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  2  │ [属性填充] 注入依赖属性（@Autowired 字段）             │ 模拟依赖注入完成               │ ✅ 通过    │
+├─────┼───────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  3  │ [Aware回调] setBeanName("orderService")               │ "我知道自己的名字了: orderService"│ ✅ 通过  │
+├─────┼───────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  4  │ [BPP前置] postProcessBeforeInitialization()            │ "前置处理: 可以在此做校验、属性修改等"│ ✅ 通过│
+├─────┼───────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  5  │ [@PostConstruct] postConstruct()                      │ "执行自定义初始化逻辑"         │ ✅ 通过    │
+├─────┼───────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  6  │ [InitializingBean] afterPropertiesSet()               │ "属性设置完毕，标记就绪"       │ ✅ 通过    │
+├─────┼───────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  7  │ [BPP后置] postProcessAfterInitialization()            │ "后置处理: 可以在此创建AOP代理、包装Bean等"│ ✅ 通过│
+├─────┼───────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│  8  │ [就绪] Bean "orderService" 创建完成                   │ Bean 放入单例缓存              │ ✅ 通过    │
+├─────┼───────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│ 使用│ OrderService[name=orderService, ready=true]           │ name 和 ready 字段均正确       │ ✅ 通过    │
+├─────┼───────────────────────────────────────────────────────┼────────────────────────────────┼────────────┤
+│ 销毁│ @PreDestroy → DisposableBean.destroy()                │ 销毁回调按序执行               │ ✅ 通过    │
+└─────┴───────────────────────────────────────────────────────┴────────────────────────────────┴────────────┘
+
+重点观察 1 — Aware 回调在属性填充之后、BPP 前置之前：
+
+  日志原文：
+    2. [属性填充] 注入依赖属性（@Autowired 字段）
+    3. [Aware回调] setBeanName("orderService")
+      → 我知道自己的名字了: orderService
+    4. [BPP前置] LoggingBeanPostProcessor.postProcessBeforeInitialization()
+
+  Aware 接口回调夹在属性填充（步骤 2）和 BPP 前置（步骤 4）之间。
+  这是因为在真实 Spring 中，Aware 回调属于 Bean 初始化前的"准备阶段"：
+    - BeanNameAware 让 Bean 知道自己在容器中的名称
+    - BeanFactoryAware 让 Bean 获得 BeanFactory 引用
+    - ApplicationContextAware 让 Bean 获得 ApplicationContext 引用
+
+  Mini 版将三种 Aware 合并为一步（只展示 BeanNameAware），
+  真实 Spring 中三种 Aware 的执行顺序是固定的：BeanName → BeanFactory → ApplicationContext。
+
+重点观察 2 — BPP 前置 vs @PostConstruct 的执行顺序：
+
+  日志原文：
+    4. [BPP前置] LoggingBeanPostProcessor.postProcessBeforeInitialization()
+      → 前置处理: 可以在此做校验、属性修改等
+    5. [@PostConstruct] postConstruct()
+      → @PostConstruct: 执行自定义初始化逻辑
+
+  步骤 4 在步骤 5 之前执行，但这里有一个容易忽视的细节：
+
+  在真实 Spring 中，@PostConstruct 实际上也是由一个 BPP 驱动的：
+    CommonAnnotationBeanPostProcessor.postProcessBeforeInitialization()
+    → 内部扫描方法上的 @PostConstruct 注解 → 反射调用
+
+  也就是说，@PostConstruct 本质上是在 BPP 前置回调的"内部"被触发的。
+  Mini 版为了教学清晰，把"BPP前置"和"@PostConstruct"拆成了独立的两步。
+
+  真实 Spring 的内部执行流程：
+    所有 BPP.postProcessBeforeInitialization() 依次执行
+      → 其中某个 BPP 就是 CommonAnnotationBeanPostProcessor
+        → 它在自己的 before 方法中调用 @PostConstruct 标注的方法
+
+  结论：@PostConstruct 不是 Spring 框架的"内建"机制，而是通过 BPP 扩展点实现的。
+
+重点观察 3 — AOP 代理的诞生时刻：
+
+  日志原文：
+    7. [BPP后置] LoggingBeanPostProcessor.postProcessAfterInitialization()  ← AOP代理在此创建
+      → 后置处理: 可以在此创建AOP代理、包装Bean等
+
+  步骤 7（BPP 后置）是 AOP 的入口。在真实 Spring 中：
+    AnnotationAwareAspectJAutoProxyCreator（也是一个 BPP）
+      → 在 postProcessAfterInitialization() 中判断当前 Bean 是否需要代理
+      → 如果需要，创建 JDK Proxy 或 CGLIB Proxy
+      → 返回代理对象（替换原始 Bean）
+
+  这就是为什么容器中缓存的可能不是原始对象，而是代理对象。
+
+  重要推论：
+    如果你在 @PostConstruct（步骤 5）中调用 this.someMethod()，
+    此时 AOP 代理还没创建（步骤 7），所以 this 调用不会被代理拦截。
+    这就是"@PostConstruct 中调用本类方法不会触发 AOP"的根本原因。
+
+重点观察 4 — 销毁回调的"镜像"关系：
+
+  日志原文：
+    [@PreDestroy] orderService.preDestroy()
+      → @PreDestroy: 释放资源
+    [DisposableBean] orderService.destroy()
+      → DisposableBean.destroy: 最终销毁
+
+  初始化顺序：
+    @PostConstruct       → InitializingBean.afterPropertiesSet()
+    (JSR-250 注解)          (Spring 接口)
+
+  销毁顺序：
+    @PreDestroy          → DisposableBean.destroy()
+    (JSR-250 注解)          (Spring 接口)
+
+  初始化和销毁是"镜像"关系，优先级始终为：
+    JSR-250 注解 > Spring 接口 > 自定义方法
+
+  Mini 版没有 init-method / destroy-method，但真实 Spring 有（见 BeanLifecycleDemo）。
+
+重点观察 5 — Bean 使用阶段验证状态正确性：
+
+  日志原文：
+    OrderService[name=orderService, ready=true]
+
+  name=orderService 来自步骤 3 的 Aware 回调（setBeanName），
+  ready=true 来自步骤 6 的 InitializingBean.afterPropertiesSet() 中的标记操作。
+  两个字段均正确赋值，说明属性填充和初始化回调链完整执行。
+
+结论：
+  Mini 版 8 步生命周期完整覆盖了 Spring 的核心流程：实例化 → 属性填充 → Aware → BPP前置
+  → @PostConstruct → InitializingBean → BPP后置 → 就绪 → 销毁。
+  @PostConstruct 本质上是 BPP 扩展，AOP 代理在 BPP 后置中创建，
+  销毁回调与初始化回调是镜像关系（JSR-250 > Spring 接口 > 自定义方法）。
+  面试中 Bean 生命周期 4 阶段（实例化 → 属性填充 → 初始化 → 销毁）是必考点。

@@ -1,0 +1,161 @@
+01.MiniAopDemo 日志分析
+========================================================================
+
+整体结果：手写动态代理 + 拦截器链完整演示了 5 种通知类型，正常/异常两条路径均按预期执行。
+
+逐步分析：
+┌──────────────────────────────────┬──────────────────────────────────────────────────────┬───────────────────────┐
+│              步骤                │                        结果                          │         状态          │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ AOP 核心概念表格输出             │ 7 个概念（Aspect/JoinPoint/Advice/Pointcut/...）      │ ✅ 完整输出           │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常场景: Around前               │ [Around-前] 环绕通知开始                              │ ✅ 最外层入栈         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常场景: Before                 │ [Before] 方法执行前: createOrder                      │ ✅ 第二层入栈         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常场景: 业务逻辑               │ [业务逻辑] 创建订单: productId=P001                    │ ✅ 栈底执行目标方法   │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常场景: After (finally)        │ [After] 方法执行后（finally）: createOrder             │ ✅ 开始出栈           │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常场景: AfterReturning         │ [AfterReturning] 方法正常返回: ORDER-1776161249322    │ ✅ 拿到实际返回值     │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 正常场景: Around后               │ [Around-后] 环绕通知结束，耗时=0ms                    │ ✅ 最外层出栈         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 异常场景: Around前               │ [Around-前] 环绕通知开始                              │ ✅ 同正常场景         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 异常场景: Before                 │ [Before] 方法执行前: createOrder                      │ ✅ 同正常场景         │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 异常场景: 业务逻辑抛异常          │ [业务逻辑] 创建订单: productId=error                   │ ✅ 目标方法抛异常     │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 异常场景: After (finally)        │ [After] 方法执行后（finally）: createOrder             │ ✅ finally 保证执行   │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 异常场景: AfterThrowing          │ [AfterThrowing] 方法抛出异常: null                    │ ✅ 异常通知触发       │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 拦截器链递归模型图               │ 完整输出 AroundInterceptor 到 target 的调用栈          │ ✅ 洋葱模型可视化     │
+├──────────────────────────────────┼──────────────────────────────────────────────────────┼───────────────────────┤
+│ 通知执行顺序总结（正常+异常）     │ 两张 ASCII 表格，6步正常 / 5步异常                    │ ✅ 面试速查           │
+└──────────────────────────────────┴──────────────────────────────────────────────────────┴───────────────────────┘
+
+重点观察 1 -- 正常场景拦截器链完整执行顺序：
+
+  日志原文：
+    [Around-前] 环绕通知开始
+    [Before] 方法执行前: createOrder
+      [业务逻辑] 创建订单: productId=P001
+    [After] 方法执行后（finally）: createOrder
+    [AfterReturning] 方法正常返回: ORDER-1776161249322
+    [Around-后] 环绕通知结束，耗时=0ms
+
+  最终返回值: ORDER-1776161249322
+
+  分析：
+  - Around 前半段最先执行，为整个调用计时提供起点
+  - Before 在业务方法之前触发，记录了方法名 createOrder
+  - 业务逻辑正常执行，生成了订单号 ORDER-1776161249322
+  - After（finally 语义）先于 AfterReturning 执行，保证无论是否异常都会触发
+  - AfterReturning 拿到了实际返回值 ORDER-1776161249322
+  - Around 后半段最后执行，完成耗时统计（0ms，说明业务逻辑极轻量）
+
+重点观察 2 -- 异常场景通知执行路径切换：
+
+  日志原文：
+    [Around-前] 环绕通知开始
+    [Before] 方法执行前: createOrder
+      [业务逻辑] 创建订单: productId=error
+    [After] 方法执行后（finally）: createOrder
+    [AfterThrowing] 方法抛出异常: null
+
+  最终抛出异常: 创建订单失败！
+
+  分析：
+  - productId="error" 触发了异常分支
+  - AfterReturning 没有出现，证明它仅在正常返回时触发
+  - AfterThrowing 替代了 AfterReturning，但异常信息为 null
+  - After（finally）依然执行，证实了 finally 语义
+  - Around 后半段没有出现，说明异常在 proceed() 中直接向上抛出
+  - 最终异常消息为"创建订单失败！"，在 main 方法通过 getCause() 获取
+
+重点观察 3 -- After 在 AfterReturning/AfterThrowing 之前执行：
+
+  正常场景日志：
+    [After] 方法执行后（finally）: createOrder       <-- 先
+    [AfterReturning] 方法正常返回: ORDER-1776161249322  <-- 后
+
+  异常场景日志：
+    [After] 方法执行后（finally）: createOrder       <-- 先
+    [AfterThrowing] 方法抛出异常: null                <-- 后
+
+  原因分析：
+  拦截器链注册顺序为 [Around, Before, AfterReturning, After]。
+  After 在 AfterReturning 外面一层（After 先入栈，出栈时 finally 先执行）。
+  注意 Spring 5 真实顺序是 AfterReturning -> After -> Around后，与手写 Demo
+  略有差异。这个细微区别正好说明"拦截器排列顺序决定了最终的通知执行顺序"。
+
+重点观察 4 -- AfterThrowing 拿到 null 的原因：
+
+  日志关键行：
+    [AfterThrowing] 方法抛出异常: null
+
+  原因：
+  method.invoke(target, args) 在目标方法抛出 RuntimeException 时，
+  JDK 反射会将其包装为 InvocationTargetException。
+  AfterThrowingInterceptor 中 catch (Throwable ex) 拿到的是
+  InvocationTargetException，它的 getMessage() 返回 null。
+  真实异常藏在 ex.getCause() 中（即 "创建订单失败！"）。
+
+  对应 Spring：ReflectiveMethodInvocation 会自动解包 InvocationTargetException，
+  所以真实 Spring AOP 的 @AfterThrowing 能直接拿到原始异常。
+
+重点观察 5 -- 拦截器链递归模型（洋葱模型）：
+
+  日志原文（递归调用栈）：
+    AroundInterceptor.invoke()
+      ├── [Around-前]
+      ├── invocation.proceed()
+      │   ├── BeforeInterceptor.invoke()
+      │   │   ├── [Before]
+      │   │   └── invocation.proceed()
+      │   │       ├── AfterReturningInterceptor.invoke()
+      │   │       │   ├── invocation.proceed()
+      │   │       │   │   └── ... → target.createOrder()
+      │   │       │   └── [AfterReturning]
+      │   │       └── ...
+      └── [Around-后]
+
+  分析：
+  proceed() 之前的代码在入栈时执行，proceed() 之后的代码在出栈时执行，
+  try-finally 保证 After 无论如何都会执行。这就是"洋葱模型"。
+
+  对应 Spring 源码中 ReflectiveMethodInvocation.proceed()：
+  currentInterceptorIndex++ 逐个推进，达到链末尾时调用 target 方法。
+
+重点观察 6 -- 正常 vs 异常通知执行顺序对比：
+
+  日志中的通知顺序总结表：
+
+  正常返回时：
+    1. @Around（前半段）
+    2. @Before
+    3. 目标方法执行
+    4. @AfterReturning
+    5. @After（finally）
+    6. @Around（后半段）
+
+  异常时：
+    1. @Around（前半段）
+    2. @Before
+    3. 目标方法抛出异常
+    4. @AfterThrowing
+    5. @After（finally）
+
+  核心差异：正常走 AfterReturning，异常走 AfterThrowing。
+  After 始终执行（finally 语义）。异常场景中 Around 后半段缺失。
+
+结论：
+  手写拦截器链完整复现了 Spring AOP 的核心机制：
+  1. proceed() 递归调用 = 洋葱模型 = 责任链模式
+  2. 拦截器的注册顺序决定了通知的执行顺序
+  3. try-finally 保证 @After 一定执行（无论正常还是异常）
+  4. JDK 反射的 InvocationTargetException 包装是常见陷阱（getMessage() 返回 null）
+  5. Spring 真实实现（ReflectiveMethodInvocation）与手写版本原理完全一致，
+     区别仅在于排序策略和异常解包处理

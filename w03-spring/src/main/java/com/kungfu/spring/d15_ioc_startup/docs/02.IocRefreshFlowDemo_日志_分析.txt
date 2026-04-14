@@ -1,0 +1,146 @@
+02.IocRefreshFlowDemo 日志分析
+========================================
+
+整体结果：全部通过，Spring 容器 refresh() 启动流程验证成功，BeanFactoryPostProcessor、@PostConstruct、@Bean 均按预期顺序执行。
+
+逐步分析：
+
+┌──────────────────────────────────────────┬───────────────────────────────────────────────────────────────────────┬──────────────────────┐
+│                  步骤                    │                                结果                                   │         状态         │
+├──────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ refresh() 第5步: BFPP 执行              │ ObserverBFPP 打印容器中 9 个 BD，列出 3 个自定义 Bean                │ ✅ 在实例化前执行    │
+├──────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ refresh() 第11步: 预实例化单例           │ DemoService @PostConstruct 触发，AppConfig @Bean greeting() 被调用   │ ✅ 标准生命周期      │
+├──────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ 容器启动完成: 使用 Bean                  │ DemoService.sayHello() = "DemoService is working!"                   │ ✅ 单例缓存命中      │
+├──────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ 容器启动完成: greeting Bean              │ greeting Bean = "Hello from Spring IoC!"                              │ ✅ @Bean 注册成功    │
+├──────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ 容器内部统计                             │ BeanFactory=DefaultListableBeanFactory, BD=9, Singleton=17           │ ✅ 符合预期          │
+├──────────────────────────────────────────┼───────────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ ctx.close()                              │ 容器已关闭，无异常                                                    │ ✅ 优雅停机          │
+└──────────────────────────────────────────┴───────────────────────────────────────────────────────────────────────┴──────────────────────┘
+
+重点观察 — BeanFactoryPostProcessor 执行时机（refresh 第5步）：
+
+  日志原文：
+    [BeanFactoryPostProcessor] 容器中共有 9 个 BeanDefinition
+    [BeanFactoryPostProcessor] 自定义 Bean 列表：
+      - iocRefreshFlowDemo.AppConfig -> com.kungfu.spring.d15_ioc_startup.IocRefreshFlowDemo$AppConfig$$EnhancerBySpringCGLIB$$b4b02321
+      - d15DemoService -> com.kungfu.spring.d15_ioc_startup.IocRefreshFlowDemo$DemoService
+      - d15ObserverProcessor -> com.kungfu.spring.d15_ioc_startup.IocRefreshFlowDemo$ObserverBeanFactoryPostProcessor
+
+  分析：
+  - BFPP 在 refresh() 第5步 invokeBeanFactoryPostProcessors() 中被调用
+  - 此时 BeanDefinition 已全部注册（共9个），但 Bean 尚未实例化
+  - 9 个 BD 中包含 Spring 内部基础设施（约6个）+ 自定义 BD 3个（AppConfig, DemoService, ObserverProcessor）
+  - BFPP 拿到的是"BeanDefinition 注册表的快照"，
+    如果在这里修改某个 BD 的 propertyValues，对后续 Bean 实例化生效
+  - 这就是 Spring Boot 自动装配的入口：ConfigurationClassPostProcessor（也是 BFPP）
+    在此阶段扫描 @Configuration + @Bean 并注册额外的 BD
+
+重点观察 — AppConfig 被 CGLIB 增强：
+
+  日志关键行：
+    iocRefreshFlowDemo.AppConfig -> ...IocRefreshFlowDemo$AppConfig$$EnhancerBySpringCGLIB$$b4b02321
+
+  分析：
+  - className 后面的 "$$EnhancerBySpringCGLIB$$" 后缀说明 @Configuration 类被 CGLIB 代理
+  - 原因：@Configuration 默认是 "Full 模式"，@Bean 方法之间互相调用时
+    需要返回同一个单例（而不是每次都 new 一个新对象）
+  - CGLIB 拦截 @Bean 方法 → 检查容器中是否已有 → 有则返回缓存
+  - 对照：@Configuration(proxyBeanMethods = false) 为 Lite 模式，不会被 CGLIB 增强
+
+重点观察 — BFPP vs @PostConstruct 的执行顺序：
+
+  日志顺序（完整时间线）：
+    [BeanFactoryPostProcessor] 容器中共有 9 个 BeanDefinition     ← refresh 第5步
+    [BeanFactoryPostProcessor] 自定义 Bean 列表：...               ← refresh 第5步
+    [DemoService] @PostConstruct 初始化回调                        ← refresh 第11步
+    [AppConfig] @Bean greeting() 被调用 —— 注册 Bean 定义         ← refresh 第11步
+
+  分析：
+  - BFPP 输出全部在前，@PostConstruct 输出在后，完美验证了 refresh() 步骤顺序
+  - 第5步 invokeBeanFactoryPostProcessors → 第6~10步（中间过程无自定义输出）→ 第11步 finishBeanFactoryInitialization
+  - BFPP 操作 BeanDefinition（元数据），BPP 操作 Bean 实例（对象），两者职责清晰分离
+  - @PostConstruct 由 CommonAnnotationBeanPostProcessor（一个 BPP）处理，在第11步 Bean 初始化阶段触发
+
+重点观察 — DemoService 与 greeting 的创建顺序：
+
+  日志原文：
+    [DemoService] @PostConstruct 初始化回调
+    [AppConfig] @Bean greeting() 被调用 —— 注册 Bean 定义
+
+  分析：
+  - DemoService（@Component 扫描得到）先于 greeting（@Bean 方法创建）实例化
+  - 创建顺序取决于 BeanDefinition 的注册顺序和依赖关系
+  - 通常：@ComponentScan 扫描的 BD → @Configuration 内的 @Bean 方法 BD
+  - 注意：这个顺序不是稳定 API，如果 Bean 之间有依赖，Spring 会优先创建被依赖方
+
+重点观察 — 容器内部统计 BD=9 vs Singleton=17：
+
+  日志原文：
+    BeanFactory 类型: DefaultListableBeanFactory
+    BeanDefinition 总数: 9
+    单例 Bean 总数: 17
+
+  分析：
+  - BD 总数 9 个 = Spring 内部基础设施 BD（约6个）+ 自定义 BD 3个
+  - 单例 Bean 总数 17 > BD 总数 9，差额 8 个来自 Spring 自动注册的基础设施：
+
+  ┌────┬───────────────────────────────────────────────────────────────┐
+  │ #  │ 通过 registerSingleton() 直接注册（不经过 BD）                │
+  ├────┼───────────────────────────────────────────────────────────────┤
+  │ 1  │ environment（StandardEnvironment）                            │
+  │ 2  │ systemProperties（System.getProperties()）                    │
+  │ 3  │ systemEnvironment（System.getenv()）                          │
+  │ 4  │ applicationEventMulticaster（事件广播器）                     │
+  │ 5  │ lifecycleProcessor（生命周期处理器）                          │
+  │ 6  │ greeting（@Bean 方法产生的 String 实例）                      │
+  │ 7  │ messageSource（国际化消息源）                                 │
+  │ 8  │ applicationStartup（应用启动追踪）                            │
+  └────┴───────────────────────────────────────────────────────────────┘
+
+  这些 Bean 是 Spring 容器自身工作所需的基础设施，
+  通过 AnnotationConfigUtils.registerAnnotationConfigProcessors() 和
+  AbstractApplicationContext.prepareBeanFactory() 等位置注册。
+
+对比表 — refresh() 关键步骤与日志对应：
+
+┌──────────┬────────────────────────────────────┬──────────────────────────────────────────────────────────────┐
+│ refresh  │           方法名                    │                    日志中的体现                              │
+│   步骤   │                                    │                                                              │
+├──────────┼────────────────────────────────────┼──────────────────────────────────────────────────────────────┤
+│  第5步   │ invokeBeanFactoryPostProcessors    │ [BeanFactoryPostProcessor] 容器中共有 9 个 BeanDefinition   │
+│          │                                    │ [BeanFactoryPostProcessor] 自定义 Bean 列表：3个            │
+├──────────┼────────────────────────────────────┼──────────────────────────────────────────────────────────────┤
+│  第11步  │ finishBeanFactoryInitialization    │ [DemoService] @PostConstruct 初始化回调                     │
+│          │                                    │ [AppConfig] @Bean greeting() 被调用                         │
+├──────────┼────────────────────────────────────┼──────────────────────────────────────────────────────────────┤
+│  第12步  │ finishRefresh                      │ （发布 ContextRefreshedEvent，无自定义监听器所以无输出）     │
+├──────────┼────────────────────────────────────┼──────────────────────────────────────────────────────────────┤
+│  关闭    │ ctx.close()                        │ 容器已关闭                                                   │
+└──────────┴────────────────────────────────────┴──────────────────────────────────────────────────────────────┘
+
+对比表 — BeanFactory vs ApplicationContext（日志验证）：
+
+┌────────────────────────┬───────────────────────────────┬──────────────────────────────────────────────┐
+│         特性           │       BeanFactory              │       ApplicationContext                      │
+├────────────────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+│ Bean 实例化时机        │ 延迟（getBean 时才创建）       │ 启动时预实例化（日志中 @PostConstruct 在     │
+│                        │                               │ 容器启动阶段就已触发，而非 getBean 时）      │
+├────────────────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+│ BFPP 自动调用          │ 不自动调用                     │ refresh 第5步自动调用（日志证实）             │
+├────────────────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+│ @PostConstruct 支持    │ 需手动注册 BPP                 │ 自动注册 CommonAnnotationBeanPostProcessor   │
+├────────────────────────┼───────────────────────────────┼──────────────────────────────────────────────┤
+│ CGLIB 增强 @Config     │ 不支持                         │ 日志显示 AppConfig$$EnhancerBySpringCGLIB    │
+└────────────────────────┴───────────────────────────────┴──────────────────────────────────────────────┘
+
+结论：通过真实 Spring 容器的启动日志，验证了 refresh() 的核心执行顺序：
+      BFPP 在第5步执行（此时只有 BD，没有 Bean 实例）→ Bean 在第11步实例化
+      （触发 @PostConstruct 和 @Bean 方法）→ 第12步发布完成事件。
+      refresh() 的本质 = "先把所有 BeanDefinition 准备好（1-10步）→ 再统一实例化（第11步）"。
+      日志中 BD 总数 9 vs 单例总数 17 的差异揭示了 Spring 容器内部
+      除了 BeanDefinition 驱动的 Bean 外，还有大量通过 registerSingleton()
+      直接注册的基础设施单例。这些细节是理解 Spring 源码的关键切入点。

@@ -1,0 +1,95 @@
+========================================
+   手写三级缓存解决循环依赖 Demo
+========================================
+
+=== 一、三级缓存结构 ===
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                  DefaultSingletonBeanRegistry                    │
+  ├─────────────────────────────────────────────────────────────────┤
+  │  一级缓存：singletonObjects      <beanName, 完整的Bean>         │
+  │            ↑  放入 populate() 和 initializeBean() 完成后         │
+  ├─────────────────────────────────────────────────────────────────┤
+  │  二级缓存：earlySingletonObjects <beanName, 半成品Bean>         │
+  │            ↑  三级缓存的 ObjectFactory 调用后放入               │
+  ├─────────────────────────────────────────────────────────────────┤
+  │  三级缓存：singletonFactories    <beanName, ObjectFactory>      │
+  │            ↑  Bean 实例化完成后立即放入                         │
+  └─────────────────────────────────────────────────────────────────┘
+
+  查找流程：
+    getSingleton(beanName)
+      ├── 查一级缓存 → 有则返回
+      ├── 查二级缓存 → 有则返回
+      └── 查三级缓存 → 执行 ObjectFactory.getObject() → 升级到二级缓存
+
+=== 二、循环依赖解决过程模拟 ===
+
+  场景：ServiceA 依赖 ServiceB，ServiceB 依赖 ServiceA（循环）
+  模拟 getBean("serviceA") 的完整过程...
+
+
+  [创建开始] serviceA
+    [1.实例化] new ServiceA() 完成，但字段还没注入
+    [2.放入三级缓存] singletonFactories.put("serviceA", ObjectFactory)
+    [3.属性填充] 开始注入 serviceA 的依赖字段
+      → 需要注入 serviceB，递归 getBean("serviceB")
+
+  [创建开始] serviceB
+    [1.实例化] new ServiceB() 完成，但字段还没注入
+    [2.放入三级缓存] singletonFactories.put("serviceB", ObjectFactory)
+    [3.属性填充] 开始注入 serviceB 的依赖字段
+      → 需要注入 serviceA，递归 getBean("serviceA")
+      ↳ 三级缓存命中: 执行 ObjectFactory 生成 serviceA
+        [ObjectFactory] 生成早期引用（可能被包装为AOP代理）
+      ↳ 已从三级缓存移动到二级缓存
+  [serviceA] 从缓存获取: ServiceA@4f47d241[serviceB=null]
+      → serviceB.serviceA 注入完成
+    [5.放入一级缓存] singletonObjects.put("serviceB", bean)
+  [创建完成] serviceB = ServiceB@4c3e4790[serviceA=ServiceA@4f47d241]
+      → serviceA.serviceB 注入完成
+    [5.放入一级缓存] singletonObjects.put("serviceA", bean)
+  [创建完成] serviceA = ServiceA@4f47d241[serviceB=ServiceB@4c3e4790]
+
+  最终结果：
+    a         = ServiceA@4f47d241[serviceB=ServiceB@4c3e4790]
+    a.serviceB = ServiceB@4c3e4790[serviceA=ServiceA@4f47d241]
+    a.serviceB.serviceA == a ? true
+
+=== 三、为什么构造器循环依赖无法解决？ ===
+
+  字段注入 / Setter 注入：
+  ┌──────────────────────────────────────────────────────────────┐
+  │ 1. new ServiceA()                 ← 实例化成功               │
+  │ 2. 放入三级缓存                    ← 此时可被循环依赖方获取  │
+  │ 3. 注入字段 serviceB              ← 触发循环，从缓存拿到A    │
+  │ 4. 完成属性填充和初始化                                       │
+  └──────────────────────────────────────────────────────────────┘
+
+  构造器注入：
+  ┌──────────────────────────────────────────────────────────────┐
+  │ 1. new ServiceA(serviceB)         ← 需要 B 才能实例化         │
+  │   ├── getBean("serviceB")                                    │
+  │   └── new ServiceB(serviceA)      ← 需要 A 才能实例化         │
+  │       └── A 还没实例化完成，无法放入三级缓存                 │
+  │                                                              │
+  │ → 抛出 BeanCurrentlyInCreationException ✗                    │
+  └──────────────────────────────────────────────────────────────┘
+
+  结论：循环依赖的前提是「至少一方的实例化可以独立于另一方」
+
+========================================
+   面试速记
+========================================
+
+  1. 三级缓存：
+     singletonObjects      → 成品 Bean（已完成所有初始化）
+     earlySingletonObjects → 半成品 Bean（已实例化，未填充属性）
+     singletonFactories    → ObjectFactory（产生早期引用，可能是AOP代理）
+  2. 查找顺序：一级 → 二级 → 三级（一、二级缓存相同则直接返回）
+  3. 三级缓存存在的意义：为 AOP 代理对象提供生成时机
+     无AOP场景下，二级缓存就够了；有AOP时需要三级缓存保证提前生成代理
+  4. 构造器循环依赖无法解决：实例化未完成，无法放入三级缓存
+  5. prototype 循环依赖无法解决：prototype 不走缓存
+  6. Spring 6 / SpringBoot 2.6+ 默认禁用循环依赖（spring.main.allow-circular-references=false）
+

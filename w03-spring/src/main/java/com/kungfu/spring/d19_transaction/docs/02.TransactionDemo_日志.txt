@@ -1,0 +1,51 @@
+========================================
+   真实 Spring @Transactional Demo
+========================================
+
+18:08:03.479 [main] INFO  o.s.j.d.e.EmbeddedDatabaseFactory - Starting embedded database: url='jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=false', username='sa'
+  当前余额: Alice=1000.0, Bob=1000.0
+
+=== 场景 1：正常转账（应提交） ===
+
+  ✓ 转账完成
+  当前余额: Alice=900.0, Bob=1100.0
+
+=== 场景 2：RuntimeException（应回滚） ===
+
+  捕获异常: 模拟异常！
+  当前余额: Alice=900.0, Bob=1100.0
+
+=== 场景 3：checked Exception（默认不回滚！） ===
+
+  捕获异常: 业务异常！
+  当前余额: Alice=700.0, Bob=1100.0
+
+  ⚠ 注意: Alice 余额已减少，但 Bob 未增加（非原子！）
+
+=== 场景 4：rollbackFor=Exception.class（强制回滚） ===
+
+  捕获异常: 业务异常！
+  当前余额: Alice=700.0, Bob=1100.0
+
+=== 场景 5：this 调用导致事务失效 ===
+
+  捕获异常: 内部方法异常，但事务不会生效！
+  当前余额: Alice=300.0, Bob=1100.0
+
+  ⚠ 注意: 事务未生效，Alice 余额变化未回滚！
+
+18:08:03.646 [main] INFO  o.s.j.d.e.EmbeddedDatabaseFactory - Shutting down embedded database: url='jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=false'
+========================================
+   面试速记
+========================================
+
+  1. @Transactional 默认只回滚 RuntimeException 和 Error
+  2. checked Exception 不回滚！需要 rollbackFor=Exception.class
+  3. 事务失效场景：
+     ✗ this 自调用（不走代理）
+     ✗ private / static / final 方法（无法被代理）
+     ✗ 注解加在非 public 方法上
+     ✗ 异常被业务代码 try-catch 吞掉
+     ✗ 类未被 Spring 管理
+  4. 使用 try-catch 后仍要回滚：手动 TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()
+

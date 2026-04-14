@@ -1,0 +1,102 @@
+01.MiniIocContainerDemo 日志分析
+========================================
+
+整体结果：全部通过，手写迷你 IoC 容器完整演示了 BeanDefinition 注册 → 实例化 → 依赖注入 → 初始化 → 单例缓存 的全流程。
+
+逐步分析：
+
+┌──────────────────────────────────┬───────────────────────────────────────────────────────────────────┬──────────────────────┐
+│              步骤                │                              结果                                 │         状态         │
+├──────────────────────────────────┼───────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ Step 1: 注册 BeanDefinition     │ userDao -> UserDao, userService -> UserService 两个 BD 注册成功   │ ✅ 符合预期          │
+├──────────────────────────────────┼───────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ Step 2: 预实例化单例 Bean       │ userDao 先实例化并缓存，userService 实例化时自动注入 userDao      │ ✅ 符合预期          │
+├──────────────────────────────────┼───────────────────────────────────────────────────────────────────┼──────────────────────┤
+│ Step 3: 使用 Bean               │ 从缓存获取 userService，调用返回 [Service] User-1001              │ ✅ 符合预期          │
+└──────────────────────────────────┴───────────────────────────────────────────────────────────────────┴──────────────────────┘
+
+重点观察 — Bean 注册阶段：
+
+  日志原文：
+    [注册] BeanDefinition: userDao -> UserDao
+    [注册] BeanDefinition: userService -> UserService
+
+  分析：
+  - 两个 Bean 按代码中的注册顺序存入 beanDefinitionMap（LinkedHashMap）
+  - 注册顺序很重要：userDao 排在 userService 前面
+  - 这意味着预实例化时 userDao 会先创建，从而保证 userService 注入时 userDao 已存在
+  - 对应 Spring 中 BeanDefinitionReader 扫描 @Component 后注册 BD 的过程
+
+重点观察 — Bean 创建三步曲（createBean 核心流程）：
+
+  日志原文（以 userService 为例）：
+    [实例化] userService = new UserService()
+    [缓存] 从 singletonObjects 获取: userDao
+    [注入] userService.userDao <- userDao
+    [初始化] userService.afterPropertiesSet()
+    [缓存] 放入 singletonObjects: userService
+
+  分析：
+  - 第一步 实例化：通过反射调用无参构造器 new UserService()
+  - 第二步 属性注入（populateBean）：发现 @MiniAutowired 注解的 userDao 字段，
+    从 singletonObjects 缓存中取出已创建的 userDao 并注入
+  - 第三步 初始化（initializeBean）：UserService 实现了 MiniInitializingBean 接口，
+    容器自动回调 afterPropertiesSet()，将 initialized 标记为 true
+  - 最后放入单例缓存 singletonObjects
+
+  这三步精确对应 Spring AbstractAutowireCapableBeanFactory 中的：
+    createBeanInstance() → populateBean() → initializeBean()
+
+重点观察 — 单例缓存命中：
+
+  日志原文：
+    [缓存] 从 singletonObjects 获取: userService
+    调用结果: [Service] User-1001 (initialized=true)
+
+  分析：
+  - Step 3 调用 getBean("userService") 时，直接从 singletonObjects 获取
+  - 没有重新创建 Bean，证明单例模式生效
+  - initialized=true 说明 afterPropertiesSet() 在创建阶段已被正确调用
+  - 这就是 Spring 单例 Bean 的核心行为：容器启动时创建一次，后续 getBean 都走缓存
+
+重点观察 — 依赖注入的递归获取：
+
+  日志原文（userDao 的创建）：
+    [实例化] userDao = new UserDao()
+    [缓存] 放入 singletonObjects: userDao
+
+  日志原文（userService 创建时获取依赖）：
+    [缓存] 从 singletonObjects 获取: userDao
+    [注入] userService.userDao <- userDao
+
+  分析：
+  - userDao 没有 @MiniAutowired 字段，所以创建过程只有 实例化 → 缓存 两步
+  - userService 创建时，populateBean 发现需要注入 userDao，调用 getBean("userDao")
+  - 此时 userDao 已在缓存中，直接命中，不需要重复创建
+  - 如果 userDao 不在缓存中，getBean 会递归触发创建 —— 这就是 Spring DI 的核心机制
+
+对比表 — Mini-IoC vs Spring 真实实现：
+
+┌────────────────────────┬─────────────────────────────────────┬─────────────────────────────────────────────┐
+│         能力           │            Mini-IoC                  │            Spring 真实实现                   │
+├────────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────┤
+│ BeanDefinition 存储    │ LinkedHashMap                        │ ConcurrentHashMap                           │
+├────────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────┤
+│ 单例缓存               │ 一级缓存 singletonObjects            │ 三级缓存（解决循环依赖）                    │
+├────────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────┤
+│ 注入方式               │ 仅字段注入 @MiniAutowired            │ 字段/构造器/Setter + @Autowired/@Resource   │
+├────────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────┤
+│ 初始化回调             │ MiniInitializingBean                 │ InitializingBean + @PostConstruct + init    │
+├────────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────┤
+│ BeanPostProcessor      │ 不支持                               │ 支持（AOP、@Autowired 处理等）              │
+├────────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────┤
+│ 循环依赖处理           │ 不支持（会 StackOverflow）           │ 三级缓存 + 提前暴露引用                     │
+├────────────────────────┼─────────────────────────────────────┼─────────────────────────────────────────────┤
+│ 作用域                 │ 仅 singleton                         │ singleton / prototype / request / session   │
+└────────────────────────┴─────────────────────────────────────┴─────────────────────────────────────────────┘
+
+结论：手写迷你 IoC 容器完整实现了 Spring IoC 的核心骨架 —— BeanDefinition 注册、
+      反射实例化、@Autowired 依赖注入、InitializingBean 初始化回调、单例缓存。
+      日志清晰展示了 Bean 从「设计图纸」到「可用对象」的全过程：
+      注册 BD → 实例化 → 属性注入 → 初始化 → 放入缓存。
+      这正是 Spring DefaultListableBeanFactory.preInstantiateSingletons() 的核心逻辑。

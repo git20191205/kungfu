@@ -1,0 +1,63 @@
+========================================
+   真实 Spring 循环依赖 Demo
+========================================
+
+=== 场景 1：字段注入循环依赖 ===
+
+  FieldServiceA.fieldServiceB ↔ FieldServiceB.fieldServiceA
+  使用 @Autowired 字段注入，Spring 可以通过三级缓存解决
+
+  ✓ 容器启动成功！
+    a.fieldServiceB == b ? true
+    b.fieldServiceA == a ? true
+
+=== 场景 2：构造器循环依赖 ===
+
+  ConstructorServiceA(b) ↔ ConstructorServiceB(a)
+  使用构造器注入，Spring 无法解决，抛出异常
+
+18:07:27.177 [main] WARN  o.s.c.a.AnnotationConfigApplicationContext - Exception encountered during context initialization - cancelling refresh attempt: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'circularDependencyDemo.ConstructorServiceA' defined in file [D:\workspace\kungfu\w03-spring\target\classes\com\kungfu\spring\d17_circular_dependency\CircularDependencyDemo$ConstructorServiceA.class]: Unsatisfied dependency expressed through constructor parameter 0; nested exception is org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'circularDependencyDemo.ConstructorServiceB' defined in file [D:\workspace\kungfu\w03-spring\target\classes\com\kungfu\spring\d17_circular_dependency\CircularDependencyDemo$ConstructorServiceB.class]: Unsatisfied dependency expressed through constructor parameter 0; nested exception is org.springframework.beans.factory.BeanCurrentlyInCreationException: Error creating bean with name 'circularDependencyDemo.ConstructorServiceA': Requested bean is currently in creation: Is there an unresolvable circular reference?
+  ✗ 预期内抛出 BeanCurrentlyInCreationException:
+    根因: BeanCurrentlyInCreationException
+    提示: Error creating bean with name 'circularDependencyDemo.ConstructorServiceA': Requested bean is currently in creation: Is there an unresolvable circular reference?
+
+=== 循环依赖场景对比表 ===
+
+  ┌────────────────────────┬──────────┬───────────────────────────────────────┐
+  │ 场景                   │ 能否解决 │ 原因                                  │
+  ├────────────────────────┼──────────┼───────────────────────────────────────┤
+  │ 字段注入 (@Autowired)  │ ✓        │ 三级缓存生效                          │
+  │ Setter 注入            │ ✓        │ 三级缓存生效                          │
+  │ 构造器注入             │ ✗        │ 实例化未完成，无法放入三级缓存        │
+  │ prototype 作用域       │ ✗        │ 不走单例缓存                          │
+  │ 字段注入 + @Async      │ 部分 ✗   │ 代理对象不在三级缓存中                │
+  │ 配合 @Lazy             │ ✓        │ 生成代理，延迟实际注入                │
+  └────────────────────────┴──────────┴───────────────────────────────────────┘
+
+  @Lazy 的工作原理：
+  ─────────────────────────────────────────────────────────────────
+  public class ServiceA {
+      @Autowired
+      @Lazy  // 生成 ServiceB 的代理对象，实际调用时才从容器获取
+      private ServiceB serviceB;
+  }
+  ─────────────────────────────────────────────────────────────────
+
+========================================
+   面试速记
+========================================
+
+  1. 能解决的场景：
+     ✓ 字段注入（@Autowired 字段）
+     ✓ Setter 注入
+  2. 不能解决的场景：
+     ✗ 构造器注入（实例化未完成，无法放入三级缓存）
+     ✗ prototype 作用域（每次都创建新 Bean，不走缓存）
+     ✗ @Async 标注的循环（代理对象不在三级缓存中，字段拿到原始对象）
+  3. 解决方案：
+     @Lazy —— 延迟初始化，生成代理对象，实际使用时才注入
+     ObjectProvider / ObjectFactory —— 延迟获取
+     重构：消除循环依赖（最佳实践）
+  4. Spring 6 / SpringBoot 2.6+ 默认禁用循环依赖
+     需要开启：spring.main.allow-circular-references=true
+

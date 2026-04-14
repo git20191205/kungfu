@@ -1,0 +1,89 @@
+========================================
+   真实 SpringBoot 自动装配 Demo
+========================================
+
+=== 一、SpringFactoriesLoader 加载机制 ===
+
+  SpringFactoriesLoader.loadFactoryNames() 加载 spring.factories 内容：
+
+  共加载 0 个自动配置类
+  前 10 个示例：
+
+=== 二、@ConditionalOnMissingBean 实战 ===
+
+  场景：GreetingAutoConfiguration 用 @ConditionalOnMissingBean 提供默认 Bean
+        用户可以自定义 GreetingService 覆盖默认实现
+
+  [AutoConfig] 用户未定义 GreetingService，使用默认实现
+  Bean 类型: DefaultGreetingService
+  调用结果: Hello, SpringBoot! (from default auto-config)
+
+=== 三、自定义 Spring Boot Starter 模板 ===
+
+  项目结构：
+  ┌── xxx-spring-boot-starter/        ← 空壳 Starter（只有 pom 依赖）
+  │    └── pom.xml
+  │         └── dependency: xxx-spring-boot-autoconfigure
+  │
+  └── xxx-spring-boot-autoconfigure/  ← 自动配置逻辑
+       ├── src/main/java/
+       │    ├── XxxAutoConfiguration.java
+       │    └── XxxProperties.java
+       └── src/main/resources/
+            └── META-INF/spring.factories
+
+  XxxAutoConfiguration.java 模板：
+  ─────────────────────────────────────────────────────────────
+  @Configuration
+  @ConditionalOnClass(XxxService.class)
+  @EnableConfigurationProperties(XxxProperties.class)
+  public class XxxAutoConfiguration {
+
+      @Bean
+      @ConditionalOnMissingBean
+      public XxxService xxxService(XxxProperties props) {
+          return new XxxService(props.getEndpoint());
+      }
+  }
+  ─────────────────────────────────────────────────────────────
+
+  spring.factories 内容：
+  ─────────────────────────────────────────────────────────────
+  org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+  com.xxx.autoconfigure.XxxAutoConfiguration
+  ─────────────────────────────────────────────────────────────
+
+=== 四、spring.factories 到 imports 文件的演进 ===
+
+  ┌──────────────┬──────────────────────────────────────────────────────────┐
+  │ 版本         │ 自动配置文件位置                                         │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ Boot 2.x     │ META-INF/spring.factories                               │
+  │              │ key = EnableAutoConfiguration                            │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ Boot 2.7     │ 两种方式并存（过渡版本）                                 │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ Boot 3.x     │ META-INF/spring/                                        │
+  │              │   org.springframework.boot.autoconfigure.                │
+  │              │   AutoConfiguration.imports                              │
+  │              │ （纯文本，每行一个配置类全限定名）                       │
+  └──────────────┴──────────────────────────────────────────────────────────┘
+
+  Boot 3.x .imports 文件示例：
+  ─────────────────────────────────────────────────────────────
+  com.xxx.autoconfigure.XxxAutoConfiguration
+  com.yyy.autoconfigure.YyyAutoConfiguration
+  ─────────────────────────────────────────────────────────────
+
+========================================
+   面试速记
+========================================
+
+  1. 自动装配入口：@EnableAutoConfiguration → AutoConfigurationImportSelector
+  2. Boot 2.x: META-INF/spring.factories
+     Boot 3.x: META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
+  3. @ConditionalOnMissingBean 保证用户自定义 Bean 优先于自动配置
+  4. 自动配置类执行顺序可通过 @AutoConfigureOrder / @AutoConfigureBefore/After 控制
+  5. 自定义 Starter 三件套：xxx-spring-boot-starter + xxx-autoconfigure + spring.factories
+  6. 启动时查看生效的自动配置：--debug 或 Conditions Evaluation Report
+

@@ -1,0 +1,110 @@
+========================================
+   MiniAutoConfigDemo 日志分析
+========================================
+
+=== 整体结果 ===
+
+  4 个候选自动配置类经过条件过滤后，3 个被跳过、1 个生效，自动装配的"扫描 -> 过滤 -> 注册"核心流程验证通过。
+
+=== 逐步分析 ===
+
+  ┌───────────────────────┬───────────────────────────────────────────────────────────┬──────────────────┐
+  │ 自动配置类            │ 条件判断                                                   │ 结果             │
+  ├───────────────────────┼───────────────────────────────────────────────────────────┼──────────────────┤
+  │ DataSourceAutoConfig  │ @ConditionalOnClass("com.zaxxer.hikari.HikariDataSource")│ ✗ 类不存在，跳过 │
+  ├───────────────────────┼───────────────────────────────────────────────────────────┼──────────────────┤
+  │ RedisAutoConfig       │ @ConditionalOnClass("...redis...RedisTemplate")           │ ✗ 类不存在，跳过 │
+  ├───────────────────────┼───────────────────────────────────────────────────────────┼──────────────────┤
+  │ AlwaysMatchConfig     │ @ConditionalOnClass("...d20_springboot.MiniAutoConfigDemo")│ ✅ 类存在，生效  │
+  ├───────────────────────┼───────────────────────────────────────────────────────────┼──────────────────┤
+  │ PropertyBasedConfig   │ @ConditionalOnProperty(havingValue="true")                │ ✗ 实际值"false"  │
+  │                       │ mini.feature.enabled="false"                              │   ⚠ 不匹配，跳过│
+  └───────────────────────┴───────────────────────────────────────────────────────────┴──────────────────┘
+
+=== 重点观察 1 — Step 1: spring.factories 扫描模拟 ===
+
+  日志关键行：
+    "发现 4 个候选自动配置类：
+      - DataSourceAutoConfig
+      - RedisAutoConfig
+      - AlwaysMatchConfig
+      - PropertyBasedConfig"
+
+  MiniAutoConfigEngine.loadAutoConfigurations() 用硬编码 List 模拟了 spring.factories 的加载过程。
+  在真实 SpringBoot 中，这一步对应：
+    AutoConfigurationImportSelector.getAutoConfigurationEntry()
+      -> getCandidateConfigurations()
+        -> SpringFactoriesLoader.loadFactoryNames()  (Boot 2.x)
+  从 META-INF/spring.factories 中读取 EnableAutoConfiguration 对应的全限定类名列表。
+
+=== 重点观察 2 — Step 2: @ConditionalOnClass 的 Class.forName() 判断 ===
+
+  日志关键行：
+    "@ConditionalOnClass("com.zaxxer.hikari.HikariDataSource") -> 类不存在 ✗"
+    "@ConditionalOnClass("org.springframework.data.redis.core.RedisTemplate") -> 类不存在 ✗"
+    "@ConditionalOnClass("com.kungfu.spring.d20_springboot.MiniAutoConfigDemo") -> 类存在 ✓"
+
+  Mini 实现用 Class.forName(className) 来判断：
+    - 不抛 ClassNotFoundException -> 返回 true（类存在）
+    - 抛 ClassNotFoundException -> 返回 false（类不存在）
+
+  HikariDataSource 和 RedisTemplate 不在 classpath 中，所以对应的 DataSourceAutoConfig
+  和 RedisAutoConfig 被跳过。而 MiniAutoConfigDemo 是本项目的类，当然存在，所以
+  AlwaysMatchConfig 通过。
+
+  注意：真实 Spring 使用 ASM（ClassReader）而非 Class.forName()，原因是：
+    1. Class.forName() 会触发类的静态初始化，可能导致副作用
+    2. ASM 只读 .class 字节码，不会把类加载进 JVM
+    3. 性能更好 -- 对应源码：OnClassCondition -> FilteringSpringBootCondition -> ClassNameFilter
+
+=== 重点观察 3 — Step 2: @ConditionalOnProperty 的精确字符串匹配 ===
+
+  日志关键行：
+    "@ConditionalOnProperty("mini.feature.enabled"="false", expected="true") -> 不匹配 ✗"
+    "✗ 跳过 PropertyBasedConfig"
+
+  代码中 PropertyBasedConfig 标注了 @MiniConditionalOnProperty(name="mini.feature.enabled", havingValue="true")，
+  而模拟配置设的是 mini.feature.enabled=false。
+  havingValue="true" 与实际值 "false" 字符串不相等，条件不满足，被跳过。
+
+  注意：这是字符串精确匹配，不是布尔逻辑。真实 Spring 的行为也一样：
+    - havingValue 不写（空字符串）-> 只要属性存在且不为 "false" 就通过
+    - matchIfMissing = false（默认属性不存在则不匹配）
+
+=== 重点观察 4 — Step 3: 最终只有 1 个配置生效 ===
+
+  日志关键行：
+    "最终生效 1 个自动配置类"
+    "-> AlwaysMatchConfig: 这个自动配置一定生效"
+
+  4 个候选 -> 1 个生效（75% 被过滤），这模拟了真实 SpringBoot 的行为：
+    - Boot 2.7.x：约 144 个候选自动配置类
+    - Boot 3.x：约 150+ 个候选自动配置类
+    - 条件过滤后，通常只有 20-30 个真正生效
+
+  这就是"约定大于配置"的核心 -- 不是没有配置，而是条件注解自动判断了：
+    1. classpath 有 Hikari 驱动？ -> 自动配置 DataSource
+    2. classpath 有 Redis 依赖？ -> 自动配置 RedisTemplate
+    3. 都没有？ -> 静默跳过，零报错
+  开发者只需要在 pom.xml 加依赖，SpringBoot 自动感知并配置。
+
+=== 重点观察 5 — Mini 与 SpringBoot 真实实现的映射关系 ===
+
+  日志中展示的映射表：
+    @MiniAutoConfiguration      -> @AutoConfiguration / @Configuration
+    @MiniConditionalOnClass     -> @ConditionalOnClass
+    @MiniConditionalOnProperty  -> @ConditionalOnProperty
+    candidates 列表             -> META-INF/spring.factories
+    evaluateConditions()        -> ConditionEvaluator / OnClassCondition
+    loadAutoConfigurations()    -> AutoConfigurationImportSelector.getAutoConfigurationEntry()
+
+  每一个 Mini 组件都有对应的 SpringBoot 真实实现，理解了模拟代码就能读懂源码。
+
+=== 结论 ===
+
+  自动装配的核心流程是"扫描 -> 过滤 -> 注册"，@Conditional 条件过滤是关键环节。
+  @ConditionalOnClass 通过 classpath 有没有指定类来判断，@ConditionalOnProperty 通过
+  配置属性值的字符串精确匹配来判断。理解了这个机制，就能理解为什么引入一个 Maven
+  依赖就能自动配置好一切，也能排查"为什么某个自动配置没生效"的问题。
+  下一步通过 AutoConfigurationDemo 验证真实 SpringFactoriesLoader 和
+  @ConditionalOnMissingBean 的行为。

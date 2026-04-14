@@ -1,0 +1,55 @@
+========================================
+   真实 Spring AOP 实战 Demo
+========================================
+
+=== 一、正常调用（观察通知执行顺序） ===
+
+    [@Around-前] findUser 环绕开始
+    [@Before] findUser 即将执行
+    [UserService] 查询用户: 1001
+    [@AfterReturning] findUser 正常返回: User-1001
+    [@After] findUser 已执行（finally）
+    [@Around-后] findUser 环绕结束，耗时=5ms
+
+  最终结果: User-1001
+
+=== 二、异常调用（观察 AfterThrowing） ===
+
+    [@Around-前] deleteUser 环绕开始
+    [@Before] deleteUser 即将执行
+    [UserService] 删除用户: 9999
+    [@AfterThrowing] deleteUser 抛出异常: 删除失败: 用户 9999 不存在
+    [@After] deleteUser 已执行（finally）
+    [@Around-后] deleteUser 环绕结束，耗时=0ms
+
+  捕获异常: 删除失败: 用户 9999 不存在
+
+=== 三、代理对象信息 ===
+
+  Bean 类名: com.kungfu.spring.d18_aop.AopDemo$UserService$$EnhancerBySpringCGLIB$$6f993008
+  是否为 CGLIB 代理: true
+  父类: UserService
+
+=== 四、常用 Pointcut 表达式 ===
+
+  ┌──────────────────────────────────────────────────────────┬──────────────────────────┐
+  │ 表达式                                                   │ 说明                     │
+  ├──────────────────────────────────────────────────────────┼──────────────────────────┤
+  │ execution(* com.xxx.service.*.*(..))                     │ service 包所有方法       │
+  │ execution(public * com.xxx..*.*(..))                     │ com.xxx 下所有 public    │
+  │ @annotation(com.xxx.Log)                                │ 标注 @Log 的方法         │
+  │ @within(org.springframework.stereotype.Service)          │ @Service 类的所有方法    │
+  │ bean(userService)                                       │ 名为 userService 的 Bean │
+  └──────────────────────────────────────────────────────────┴──────────────────────────┘
+
+========================================
+   面试速记
+========================================
+
+  1. @EnableAspectJAutoProxy 注册 AnnotationAwareAspectJAutoProxyCreator
+  2. 该 BPP 在 postProcessAfterInitialization 中为匹配的 Bean 创建代理
+  3. 同一切面内 Spring 5 的执行顺序：
+     Around前 → Before → 目标方法 → AfterReturning/AfterThrowing → After → Around后
+  4. this 调用（同类方法互调）不走代理，AOP 不生效
+     解决：注入自身代理、AopContext.currentProxy()、拆分类
+

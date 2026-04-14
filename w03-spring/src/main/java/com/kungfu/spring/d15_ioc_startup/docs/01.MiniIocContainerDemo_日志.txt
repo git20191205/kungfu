@@ -1,0 +1,91 @@
+========================================
+   手写迷你 IoC 容器 Demo
+========================================
+
+=== 一、IoC 与 DI 核心概念 ===
+
+  ┌─────────────────────────────────────────────────────────┐
+  │ 传统方式（程序员控制）              IoC方式（容器控制）  │
+  │                                                         │
+  │ UserService service = new UserService();                │
+  │ service.setUserDao(new UserDao());  ← 程序员手动创建    │
+  │                                                         │
+  │ vs.                                                     │
+  │                                                         │
+  │ @Autowired                                              │
+  │ private UserDao userDao;            ← 容器自动注入      │
+  └─────────────────────────────────────────────────────────┘
+
+  IoC 容器的核心组件：
+  ┌─────────────────────┬──────────────────────────────────────┐
+  │ 组件                │ 职责                                  │
+  ├─────────────────────┼──────────────────────────────────────┤
+  │ BeanDefinition      │ Bean 的元数据（类型、作用域、依赖等） │
+  │ BeanDefinitionReader│ 从配置源读取并注册 BeanDefinition     │
+  │ BeanFactory         │ Bean 的创建工厂（核心容器）           │
+  │ ApplicationContext  │ BeanFactory 的增强版（含事件、AOP等） │
+  │ BeanPostProcessor   │ Bean 创建过程中的扩展点               │
+  └─────────────────────┴──────────────────────────────────────┘
+
+=== 二、手写 IoC 容器实战 ===
+
+  --- Step 1: 注册 BeanDefinition ---
+
+  [注册] BeanDefinition: userDao -> UserDao
+  [注册] BeanDefinition: userService -> UserService
+
+  --- Step 2: 预实例化单例 Bean ---
+
+  [预实例化] 开始预实例化所有单例 Bean...
+
+  [实例化] userDao = new UserDao()
+  [缓存] 放入 singletonObjects: userDao
+
+  [实例化] userService = new UserService()
+  [缓存] 从 singletonObjects 获取: userDao
+  [注入] userService.userDao <- userDao
+  [初始化] userService.afterPropertiesSet()
+  [缓存] 放入 singletonObjects: userService
+
+  --- Step 3: 使用 Bean ---
+
+  [缓存] 从 singletonObjects 获取: userService
+  调用结果: [Service] User-1001 (initialized=true)
+
+=== 三、Mini-IoC 与 Spring 真实结构对比 ===
+
+  ┌──────────────────────┬────────────────────────────────────────┐
+  │ Mini-IoC             │ Spring 真实实现                        │
+  ├──────────────────────┼────────────────────────────────────────┤
+  │ MiniBeanDefinition   │ BeanDefinition (接口)                  │
+  │                      │ → GenericBeanDefinition                │
+  │                      │ → RootBeanDefinition                   │
+  ├──────────────────────┼────────────────────────────────────────┤
+  │ MiniBeanFactory      │ DefaultListableBeanFactory             │
+  │ .beanDefinitionMap   │ .beanDefinitionMap (ConcurrentHashMap) │
+  │ .singletonObjects    │ .singletonObjects (一级缓存)           │
+  ├──────────────────────┼────────────────────────────────────────┤
+  │ @MiniComponent       │ @Component / @Service / @Repository    │
+  │ @MiniAutowired       │ @Autowired / @Resource / @Inject       │
+  ├──────────────────────┼────────────────────────────────────────┤
+  │ MiniInitializingBean │ InitializingBean                       │
+  │ .afterPropertiesSet  │ .afterPropertiesSet()                  │
+  ├──────────────────────┼────────────────────────────────────────┤
+  │ createBean()         │ AbstractAutowireCapableBeanFactory     │
+  │                      │ .createBean() → doCreateBean()         │
+  ├──────────────────────┼────────────────────────────────────────┤
+  │ populateBean()       │ .populateBean()                        │
+  │ initializeBean()     │ .initializeBean()                      │
+  └──────────────────────┴────────────────────────────────────────┘
+
+========================================
+   面试速记
+========================================
+
+  1. IoC = 控制反转：对象的创建和管理权从程序员转移到容器
+  2. DI = 依赖注入：容器负责将依赖对象注入到目标对象中
+  3. BeanDefinition 是 Bean 的「设计图纸」，BeanFactory 是「工厂」
+  4. Spring 容器启动流程：扫描 → 注册BD → 实例化 → 注入 → 初始化
+  5. BeanFactory 是 IoC 容器的根接口，ApplicationContext 是它的高级封装
+  6. 单例 Bean 默认在容器启动时预实例化（懒加载需 @Lazy）
+

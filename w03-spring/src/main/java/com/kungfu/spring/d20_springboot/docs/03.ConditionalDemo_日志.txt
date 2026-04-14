@@ -1,0 +1,83 @@
+========================================
+   @Conditional 条件注解 Demo
+========================================
+
+=== 一、@Conditional 条件注解全家族 ===
+
+  ┌─────────────────────────────┬──────────────────────────────────────────┐
+  │ 条件注解                    │ 说明                                      │
+  ├─────────────────────────────┼──────────────────────────────────────────┤
+  │ @ConditionalOnClass         │ classpath 中存在指定类                    │
+  │ @ConditionalOnMissingClass  │ classpath 中不存在指定类                  │
+  │ @ConditionalOnBean          │ 容器中存在指定 Bean                       │
+  │ @ConditionalOnMissingBean   │ 容器中不存在指定 Bean（兜底默认值）       │
+  │ @ConditionalOnProperty      │ 配置属性匹配指定值                        │
+  │ @ConditionalOnResource      │ classpath 中存在指定资源文件              │
+  │ @ConditionalOnWebApplication│ 当前是 Web 应用                           │
+  │ @ConditionalOnNotWebApp     │ 当前不是 Web 应用                         │
+  │ @ConditionalOnExpression     │ SpEL 表达式为 true                        │
+  │ @ConditionalOnJava          │ JDK 版本满足条件                          │
+  └─────────────────────────────┴──────────────────────────────────────────┘
+
+=== 二、@Conditional 真实验证 ===
+
+  容器中注册的自定义 Bean：
+
+  ✓ h2Service = H2 Database Service (H2 驱动存在)
+  ✓ noOracleService = Non-Oracle Service (Oracle 驱动不存在)
+  ✓ dependentService = Dependent Service (依赖 h2Service)
+  ✓ fallbackService = Fallback Service (missingBean 不存在)
+
+  条件不满足而未注册的 Bean：
+
+=== 三、自定义 Condition 写法 ===
+
+  Step 1: 实现 Condition 接口
+  ─────────────────────────────────────────────────────────────
+  public class OnLinuxCondition implements Condition {
+      @Override
+      public boolean matches(ConditionContext ctx,
+                             AnnotatedTypeMetadata metadata) {
+          String os = ctx.getEnvironment()
+                          .getProperty("os.name", "");
+          return os.toLowerCase().contains("linux");
+      }
+  }
+  ─────────────────────────────────────────────────────────────
+
+  Step 2: 使用 @Conditional(OnLinuxCondition.class)
+  ─────────────────────────────────────────────────────────────
+  @Bean
+  @Conditional(OnLinuxCondition.class)
+  public LinuxService linuxService() { ... }
+  ─────────────────────────────────────────────────────────────
+
+=== 四、排查自动配置的方法 ===
+
+  ┌────┬──────────────────────────────────────────────────────────┐
+  │ #  │ 排查方式                                                 │
+  ├────┼──────────────────────────────────────────────────────────┤
+  │ 1  │ 启动参数 --debug（打印 ConditionEvaluationReport）       │
+  │ 2  │ Actuator /conditions 端点（Web 环境）                    │
+  │ 3  │ 日志级别 logging.level.org.springframework.boot.auto=DEBUG│
+  │ 4  │ 在 IDEA 中使用 Spring Boot Dashboard 查看                │
+  │ 5  │ @ConditionalOnMissingBean 是否被其他 Bean 提前注册覆盖   │
+  └────┴──────────────────────────────────────────────────────────┘
+
+  常见排查场景：
+    Q: 为什么 DataSource 没有自动配置？
+    A: 检查 classpath 是否有 JDBC 驱动 (@ConditionalOnClass)
+
+    Q: 为什么我的 Bean 被覆盖了？
+    A: 检查自动配置类是否没有 @ConditionalOnMissingBean
+
+========================================
+   面试速记
+========================================
+
+  1. @ConditionalOnClass: classpath 有指定类时生效（最常用）
+  2. @ConditionalOnMissingBean: 容器中没有指定 Bean 时生效（默认值兜底）
+  3. @ConditionalOnProperty: 配置属性匹配时生效（功能开关）
+  4. 条件注解在 ConfigurationClassParser 阶段评估
+  5. 排查自动配置：--debug / ConditionEvaluationReport / Actuator /conditions
+
