@@ -1,0 +1,95 @@
+IocRefreshFlowDemo 实际运行日志分析
+
+运行环境：JDK 1.8.0_441, Windows 11, Spring 5.3.31
+
+整体结果：Spring IoC 容器启动成功，所有 Bean 正常创建和使用。
+
+与编造日志的关键差异：
+
+  ┌───────────────────────────┬──────────────┬──────────────┐
+  │ 数据点                    │ 编造值       │ 实际值       │
+  ├───────────────────────────┼──────────────┼──────────────┤
+  │ BeanDefinition 总数       │ 8            │ 9            │
+  │ 单例 Bean 总数            │ 12           │ 17           │
+  │ AppConfig 类名            │ ...AppConfig │ ...AppConfig$$EnhancerBySpringCGLIB$$b4b02321 │
+  │ @PostConstruct 和 @Bean   │ @Bean 先     │ @PostConstruct 先 │
+  │ 执行顺序                  │              │              │
+  └───────────────────────────┴──────────────┴──────────────┘
+
+重点观察 1 — BeanDefinition 数量 9 vs 编造的 8：
+
+  实际 9 个 BeanDefinition 包含：
+  Spring 内置基础设施 BD：
+    1. internalConfigurationAnnotationProcessor
+    2. internalAutowiredAnnotationProcessor
+    3. internalCommonAnnotationProcessor
+    4. internalEventListenerProcessor
+    5. internalEventListenerFactory
+  用户自定义 BD：
+    6. iocRefreshFlowDemo.AppConfig
+    7. d15DemoService
+    8. d15ObserverProcessor
+    9. greeting (@Bean 方法)
+
+  编造时少算了 1 个内置 BD（internalEventListenerFactory）
+
+重点观察 2 — 单例 Bean 17 vs 编造的 12：
+
+  17 个单例 = 9 个 BD 产生的 Bean + 8 个无 BD 的基础设施单例
+
+  额外的基础设施单例（无 BeanDefinition）：
+  - environment
+  - systemProperties
+  - systemEnvironment
+  - messageSource（如果未自定义则创建默认的）
+  - applicationEventMulticaster
+  - lifecycleProcessor
+  - 以及其他内部 Bean
+
+  编造时低估了 Spring 内部创建的基础设施 Bean 数量
+
+重点观察 3 — AppConfig 被 CGLIB 增强：
+
+  编造输出：
+    iocRefreshFlowDemo.AppConfig -> ...IocRefreshFlowDemo$AppConfig
+
+  实际输出：
+    iocRefreshFlowDemo.AppConfig -> ...IocRefreshFlowDemo$AppConfig$$EnhancerBySpringCGLIB$$b4b02321
+
+  原因：
+  - @Configuration 类会被 CGLIB 代理增强
+  - 这是 Spring 保证 @Bean 方法语义的机制
+  - 代理确保 @Bean 方法多次调用返回同一个单例
+  - 如果用 @Configuration(proxyBeanMethods=false)，则不会被增强
+
+  ★ 面试加分点：
+  Q: 为什么 @Configuration 类会被 CGLIB 代理？
+  A: 为了实现 @Bean 方法间的单例语义。
+     如果 A() 方法内调用 B()，代理确保返回容器中的同一个 B 实例，
+     而不是每次调用都 new 一个新的。
+
+重点观察 4 — @PostConstruct 和 @Bean 的执行顺序：
+
+  编造顺序：
+    [AppConfig] @Bean greeting() 被调用
+    [DemoService] @PostConstruct 初始化回调
+
+  实际顺序：
+    [DemoService] @PostConstruct 初始化回调
+    [AppConfig] @Bean greeting() 被调用
+
+  原因：
+  - DemoService 通过 @Component 注册，在 BD 列表中排在前面
+  - Spring 按 BeanDefinition 注册顺序实例化非懒加载单例
+  - DemoService 先被创建 → @PostConstruct 先执行
+  - greeting Bean 后被创建 → @Bean 方法后执行
+  - 这个顺序不是固定的，取决于 BD 注册顺序
+
+  ★ 关键教训：不要依赖 Bean 的初始化顺序！
+    如果需要确保顺序，应使用 @DependsOn 或 SmartLifecycle
+
+结论：
+  1. BeanDefinition 数量和单例 Bean 数量都比编造的多（Spring 内部基础设施）
+  2. @Configuration 类被 CGLIB 增强是 Spring 的重要机制
+  3. Bean 初始化顺序取决于 BD 注册顺序，不应假设固定顺序
+  4. 编造日志的核心流程和概念是正确的，数量细节有偏差

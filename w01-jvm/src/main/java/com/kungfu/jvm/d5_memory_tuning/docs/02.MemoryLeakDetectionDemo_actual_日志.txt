@@ -1,0 +1,142 @@
+========================================
+  内存泄漏检测实战
+========================================
+
+=== 内存泄漏 vs 内存溢出 ===
+
+  ┌──────────────┬──────────────────────┬──────────────────────┐
+  │              │ 内存泄漏 (Leak)      │ 内存溢出 (OOM)       │
+  ├──────────────┼──────────────────────┼──────────────────────┤
+  │ 定义         │ 对象不再使用但无法回收│ 申请内存超过最大限制 │
+  │ 特征         │ 堆使用率缓慢上升     │ 突然崩溃             │
+  │ 发现时机     │ 运行数小时/天后      │ 立即或短时间内       │
+  │ 因果关系     │ 泄漏是因             │ OOM 是果             │
+  └──────────────┴──────────────────────┴──────────────────────┘
+
+--- 模式一：static 集合只增不删 ---
+
+  场景：本地 HashMap 缓存用户会话数据，只 put 不 remove
+  典型代码：SessionCache.put(sessionId, data)
+
+  ★ 模拟泄漏过程（往 static HashMap 不断写入）：
+    第 1 轮: 缓存 200 条, 堆使用 1.3 MB
+    第 2 轮: 缓存 400 条, 堆使用 2.1 MB
+    第 3 轮: 缓存 600 条, 堆使用 2.1 MB
+    第 4 轮: 缓存 800 条, 堆使用 2.3 MB
+    第 5 轮: 缓存 1000 条, 堆使用 2.3 MB
+
+  手动 GC 后: 缓存仍有 1000 条, 堆使用 1.6 MB
+  → GC 无法回收！因为 static 字段是 GC Root，持有所有 entry
+
+  泄漏特征：
+    1. jmap -histo 连续执行两次，HashMap$Node 数量只增不减
+    2. Full GC 后堆使用率不回落
+    3. MAT → Dominator Tree → HashMap 占比越来越高
+
+  修复方案：
+    方案1: WeakHashMap — 当 key 无强引用时自动回收
+    方案2: Caffeine Cache — maximumSize + expireAfterWrite
+    方案3: Redis — 缓存放到 JVM 外
+
+  ★ WeakHashMap 对比演示：
+    写入 1000 条后: WeakHashMap size = 1000
+    GC 后: WeakHashMap size = 0 ← key 无强引用时自动回收
+
+--- 模式二：监听器注册不注销 ---
+
+  场景：组件注册 EventListener，销毁时忘记 removeListener
+  典型代码：eventBus.register(this)  // 但 destroy() 没有 unregister
+
+  ★ 模拟泄漏过程：
+    第 1 批: 注册 20 个监听器, 堆使用 1.7 MB
+    第 2 批: 注册 40 个监听器, 堆使用 2.7 MB
+    第 3 批: 注册 60 个监听器, 堆使用 3.7 MB
+    第 4 批: 注册 80 个监听器, 堆使用 4.7 MB
+    第 5 批: 注册 100 个监听器, 堆使用 5.6 MB
+
+  → 虽然组件 "销毁" 了，但 LISTENERS 列表仍持有引用
+    GC 无法回收这些 HeavyComponent（每个 50KB）
+
+  泄漏特征：
+    1. LISTENERS 列表不断增长
+    2. MAT → Path to GC Roots → 发现 static List 持有引用
+    3. 组件实例数与创建次数成正比（应该被回收但没有）
+
+  修复方案：
+    1. 在 @PreDestroy / close() / finally 中调用 unregister()
+    2. 使用 WeakReference 包装 listener
+    3. Spring 的 @EventListener 自动管理生命周期
+
+--- 模式三：ThreadLocal 使用后未 remove ---
+
+  场景：线程池 + ThreadLocal，任务结束不 remove
+  典型代码：threadLocal.set(data)  // 但 finally 没有 remove
+
+  ★ 为什么线程池 + ThreadLocal 会泄漏？
+  ┌────────────────────────────────────────────────────────┐
+  │ 线程池的线程不会被销毁 → Thread 对象一直存活           │
+  │ Thread 持有 ThreadLocalMap → Map 中的 Entry 不会回收  │
+  │ 即使 ThreadLocal 变量本身被 GC（WeakReference），    │
+  │ value 仍然存活 → 造成 value 泄漏                      │
+  └────────────────────────────────────────────────────────┘
+
+  模拟：在主线程中演示 set 后不 remove 的问题
+
+  ❌ 错误用法（不 remove）：
+    ThreadLocal.set(10KB data)
+    任务执行中...
+    任务结束，但 ThreadLocal value 仍被 Thread 持有
+    → 如果是线程池，这 10KB 会一直挂在线程上，直到线程被销毁
+
+  ✓ 正确用法（try-finally remove）：
+    try {
+        CONTEXT.set(new byte[10 * 1024]);
+        // 业务逻辑...
+    } finally {
+        CONTEXT.remove();  // ★ 必须 remove！
+    }
+
+  泄漏特征：
+    1. 堆中大量 ThreadLocal$ThreadLocalMap$Entry 对象
+    2. Entry 的 referent（key）为 null，但 value 不为 null
+    3. MAT → Thread 对象 → threadLocals 字段 → 大量废弃 Entry
+
+  修复方案：
+    1. ★ 永远在 finally 中调用 ThreadLocal.remove()
+    2. 使用 TransmittableThreadLocal（阿里开源，线程池场景增强）
+    3. 代码审查：grep -r 'ThreadLocal.*set' 检查有无对应 remove
+
+========================================
+  内存泄漏检测 SOP
+========================================
+
+  Step 1: 监控发现异常
+    - Grafana 堆使用率图表呈锯齿上升趋势
+    - Full GC 频率逐渐增加（每天多一次 → 每小时多一次）
+
+  Step 2: jmap -histo 对比
+    - 间隔 10 分钟执行两次 jmap -histo:live <PID>
+    - 对比哪些类的实例数和占用内存持续增长
+    - 重点关注自定义类、HashMap$Node、byte[] 等
+
+  Step 3: dump 分析
+    - jmap -dump:live,format=b,file=heap.hprof <PID>
+    - MAT 打开 → Leak Suspects Report → 自动定位可疑对象
+    - Dominator Tree → 找内存占比最大的对象
+
+  Step 4: 定位根因
+    - 右键可疑对象 → Path to GC Roots → exclude weak references
+    - 找到持有引用的代码位置（static 字段 / 集合 / 监听器）
+    - 判断是「只增不删」还是「生命周期管理缺失」
+
+  Step 5: 修复验证
+    ┌───────────────────┬────────────────────────────────────┐
+    │ 泄漏模式          │ 修复方案                            │
+    ├───────────────────┼────────────────────────────────────┤
+    │ static 集合       │ Caffeine/WeakHashMap + 容量限制     │
+    │ 监听器未注销      │ @PreDestroy / close() 中 unregister │
+    │ ThreadLocal       │ finally { threadLocal.remove() }    │
+    │ 连接/流未关闭     │ try-with-resources 自动关闭         │
+    │ 内部类持有外部类  │ 改为 static 内部类                  │
+    └───────────────────┴────────────────────────────────────┘
+========================================

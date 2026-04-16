@@ -1,0 +1,149 @@
+========================================
+  MAT 堆转储分析方法论
+========================================
+
+=== 一、Heap Dump 获取方式 ===
+
+  ┌─────┬────────────────────────────────────────────────────────┐
+  │ 方式│ 命令 / 配置                                            │
+  ├─────┼────────────────────────────────────────────────────────┤
+  │  1  │ jmap -dump:live,format=b,file=heap.hprof <PID>         │
+  │     │ → 手动获取，live 表示只 dump 存活对象                  │
+  ├─────┼────────────────────────────────────────────────────────┤
+  │  2  │ -XX:+HeapDumpOnOutOfMemoryError                        │
+  │     │ -XX:HeapDumpPath=/data/logs/heap_dump.hprof             │
+  │     │ → OOM 时自动生成（★ 生产必配）                        │
+  ├─────┼────────────────────────────────────────────────────────┤
+  │  3  │ jcmd <PID> GC.heap_dump /tmp/heap.hprof                │
+  │     │ → JDK 9+ 推荐方式                                     │
+  └─────┴────────────────────────────────────────────────────────┘
+
+  ★ 生产建议：始终开启 HeapDumpOnOutOfMemoryError
+    OOM 是一次性事件，错过 dump 就无法复现
+
+=== 二、MAT 分析 SOP（标准操作流程）===
+
+  Step 1: 打开 Dump
+    File → Open Heap Dump → 选择 .hprof 文件
+    MAT 自动计算支配树，首次打开较慢
+
+  Step 2: Leak Suspects Report（自动分析）
+    MAT 自动检测可疑泄漏点，生成报告
+    通常能直接定位到问题代码
+
+  Step 3: Dominator Tree（支配树）
+    按 Retained Size 降序排列
+    找到占内存最大的对象（通常就是泄漏点）
+    ┌──────────────────────────────────────────────────┐
+    │ Dominator Tree 示例：                            │
+    │                                                  │
+    │   java.util.HashMap         Retained: 25.6 MB   │
+    │   ├── Node[0]               Retained: 1.2 KB    │
+    │   ├── Node[1]               Retained: 1.2 KB    │
+    │   └── ... (21000 nodes)                          │
+    │                                                  │
+    │   → 一个 HashMap 占了 25.6 MB ≈ 堆的 85%        │
+    └──────────────────────────────────────────────────┘
+
+  Step 4: Path to GC Roots
+    右键可疑对象 → Path to GC Roots → exclude weak/soft references
+    找到是谁持有了这个对象的引用
+    ┌──────────────────────────────────────────────────┐
+    │ GC Roots 路径示例：                              │
+    │                                                  │
+    │   Thread main                                    │
+    │   └── static OrderService.ORDER_CACHE            │
+    │       └── java.util.HashMap                      │
+    │           └── Node[] table (21000 entries)        │
+    │                                                  │
+    │   → 根因：OrderService.ORDER_CACHE 是 static     │
+    │     HashMap，只 put 不 remove                    │
+    └──────────────────────────────────────────────────┘
+
+  Step 5: 定位代码并修复
+    根据 GC Roots 路径找到代码中的具体位置
+    判断是「泄漏」（该回收没回收）还是「确实不够」（业务需要这么多内存）
+
+=== 三、Shallow Size vs Retained Size ===
+
+  ┌────────────────┬──────────────────────────────────────────┐
+  │ 概念           │ 说明                                     │
+  ├────────────────┼──────────────────────────────────────────┤
+  │ Shallow Size   │ 对象本身占用的内存（不含引用的其他对象） │
+  │                │ 例：HashMap 对象本身只有几十字节         │
+  ├────────────────┼──────────────────────────────────────────┤
+  │ Retained Size  │ 对象被 GC 后能释放的总内存               │
+  │                │ 例：HashMap 被回收后，内部所有 Node +    │
+  │                │ Key + Value 都会被释放 → 可能几十 MB     │
+  └────────────────┴──────────────────────────────────────────┘
+
+  示意图：
+    HashMap (Shallow: 48B, Retained: 25MB)
+    ├── Node[] table (Shallow: 64KB)
+    │   ├── Node → Key(String) + Value(byte[1024])
+    │   ├── Node → Key(String) + Value(byte[1024])
+    │   └── ... × 21000
+    └── 回收 HashMap → 释放 25MB（Retained Size）
+
+  ★ 面试要点：
+    - 排查泄漏时看 Retained Size，不是 Shallow Size
+    - Retained Size 最大的对象最可能是泄漏根因
+    - Shallow Size 主要用于理解单个对象的内存布局
+
+=== 四、模拟真实泄漏场景 ===
+
+  场景：订单服务本地缓存，只缓存不清理
+  引用链：ORDER_CACHE(static) → HashMap → OrderInfo → List<OrderItem>
+  每个订单约 1.5KB（含 3 个商品项）
+
+  参数: -Xms30m -Xmx30m -XX:+HeapDumpOnOutOfMemoryError
+
+  缓存 2000 个订单，堆使用 7.7 MB / 29.0 MB
+  缓存 4000 个订单，堆使用 9.7 MB / 29.0 MB
+  缓存 6000 个订单，堆使用 11.7 MB / 29.0 MB
+  缓存 8000 个订单，堆使用 13.5 MB / 29.0 MB
+  缓存 10000 个订单，堆使用 19.1 MB / 29.0 MB
+  缓存 12000 个订单，堆使用 20.5 MB / 29.0 MB
+  缓存 14000 个订单，堆使用 22.0 MB / 29.0 MB
+  缓存 16000 个订单，堆使用 27.4 MB / 29.0 MB
+  缓存 18000 个订单，堆使用 27.3 MB / 29.0 MB
+java.lang.OutOfMemoryError: GC overhead limit exceeded
+Dumping heap to ./oom_dump.hprof ...
+Heap dump file created [34542425 bytes in 0.035 secs]
+
+  ★ OOM！缓存了 18796 个订单后堆耗尽
+  错误: GC overhead limit exceeded
+
+  MAT 分析此 dump 的预期结果：
+  ┌─────────────────────────────────────────────────────────────┐
+  │ 1. Leak Suspects → Problem Suspect 1:                      │
+  │    "One instance of java.util.HashMap loaded by             │
+  │     <system class loader> occupies 25,165,824 bytes"        │
+  │                                                             │
+  │ 2. Dominator Tree:                                          │
+  │    HashMap           Retained: ~25 MB (85%)                 │
+  │    ├── Node[0]       → OrderInfo → List<OrderItem>          │
+  │    ├── Node[1]       → OrderInfo → List<OrderItem>          │
+  │    └── ... (18796 nodes)                            │
+  │                                                             │
+  │ 3. Path to GC Roots:                                        │
+  │    static HeapDumpAnalysisDemo.ORDER_CACHE                  │
+  │    └── HashMap → Node[] → OrderInfo → OrderItem[]           │
+  │                                                             │
+  │ 4. 定位：ORDER_CACHE 是 static 字段，只 put 不 remove       │
+  └─────────────────────────────────────────────────────────────┘
+
+  修复方案：
+  1. 替换为 Caffeine Cache: maximumSize(10000) + expireAfterWrite(30min)
+  2. 或使用 Redis 做分布式缓存
+  3. 定期清理过期订单缓存
+
+========================================
+  MAT 使用速查
+========================================
+
+  下载: https://eclipse.dev/mat/downloads.php
+  打开: File → Open Heap Dump → 选 .hprof 文件
+  分析: Leak Suspects → Dominator Tree → GC Roots
+  技巧: 用 OQL 查询（类似 SQL）: SELECT * FROM java.util.HashMap WHERE size > 1000
+========================================

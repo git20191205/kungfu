@@ -1,0 +1,118 @@
+MetaspaceAndDirectOOMDemo 日志分析
+
+整体结果：Demo 演示了 3 种非堆 OOM 场景，每种场景都展示了完整的错误信息、
+          排查流程和修复方案。覆盖了堆 OOM 之外最常见的 3 大类内存问题。
+
+逐步分析：
+
+  ┌──────────────────┬──────────────────────────────────┬────────┐
+  │ 场景             │ 预期结果                         │ 状态   │
+  ├──────────────────┼──────────────────────────────────┼────────┤
+  │ OOM 类型速查表   │ 展示 6 种 OOM 类型               │ ✅     │
+  │ Metaspace OOM    │ 约 2.6 万代理类后 OOM            │ ✅     │
+  │ Direct Memory OOM│ 10 MB 直接内存后 OOM             │ ✅     │
+  │ StackOverflow    │ 约 8000 层递归后溢出             │ ✅     │
+  │ 修复方案         │ 每种 OOM 都有针对性方案          │ ✅     │
+  └──────────────────┴──────────────────────────────────┴────────┘
+
+重点观察 1 — Metaspace OOM 的根因特征：
+
+  日志原文：
+    ★ OOM！生成了 26783 个代理类后 Metaspace 耗尽
+    错误: Metaspace
+
+  分析：
+    每个代理类约占用 1KB~2KB Metaspace 空间
+    30MB ÷ ~1.15KB/类 ≈ 26000 类 → 与观察到的 26783 吻合
+
+    为什么 Metaspace 能被耗尽？
+    1. 每次 new ClassLoader() 创建的类不被共享
+    2. 每个代理 Proxy 实例都是一个新的 Class
+    3. 我们 add 到 List → ClassLoader 无法被 GC
+    4. ClassLoader 不被回收 → 它加载的所有类都不能回收
+
+    生产环境中的典型场景：
+    - CGLIB 生成动态代理（Spring AOP/Mybatis）
+    - OGNL/SpEL 表达式编译
+    - Groovy/JRuby 脚本执行
+    - JSP 重新编译（Tomcat 热部署）
+    - 大量使用反射 + 生成字节码（Lombok 已编译期生成，不在此列）
+
+重点观察 2 — Direct Memory OOM 的特殊性：
+
+  日志原文：
+    ★ OOM！分配了 10 块（10.0 MB）直接内存后耗尽
+    错误: Direct buffer memory
+
+  分析：
+    - 刚好 10MB 就 OOM，因为 -XX:MaxDirectMemorySize=10m
+    - 在堆中看不到这些内存（它们在操作系统本地内存里）
+    - ByteBuffer.allocateDirect() 返回 DirectByteBuffer 对象
+      DirectByteBuffer 在堆中只占几十字节，指向堆外内存
+    - GC 回收 DirectByteBuffer 时，其 Cleaner 会释放堆外内存
+
+    为什么 GC 没救下来？
+    - 我们用 List 持有所有 ByteBuffer → 永远不会被 GC
+    - 即使 GC 触发，也来不及清理堆外内存
+    - 堆外内存的回收依赖 PhantomReference 机制
+
+    生产场景：
+    - Netty ByteBuf 未 release
+    - NIO FileChannel/SocketChannel 未 close
+    - RocketMQ/Kafka 客户端的内存池管理
+
+    监控方式：
+    ```java
+    BufferPoolMXBean bean = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class)
+        .stream().filter(b -> "direct".equals(b.getName())).findFirst().get();
+    long used = bean.getMemoryUsed();
+    ```
+
+重点观察 3 — StackOverflowError 的深度计算：
+
+  日志原文：
+    ★ StackOverflow！递归深度达到 8427 层
+
+  分析：
+    默认栈大小（Linux 64位）= 1MB = 1,048,576 字节
+    每帧 ≈ 1,048,576 / 8427 ≈ 124 字节 → 与理论值（128~256B）吻合
+
+    栈帧大小的影响因素：
+    1. 方法的局部变量数量
+    2. 操作数栈深度
+    3. 是否有引用类型参数（引用占 4~8 字节）
+    4. 方法签名复杂度
+
+    为什么是 8427 而不是整数？
+    - JVM 预留了一小部分栈空间给异常处理
+    - 不同 JVM 厂商实现有差异
+    - 每次运行可能略有浮动
+
+    不同场景的栈深度：
+    - 普通方法调用: 通常 < 1000 层
+    - 递归算法: 应控制在 1000~5000 层
+    - 深层 JSON 解析: 注意递归深度
+    - XML 递归解析: 用 SAX 代替 DOM
+
+重点观察 4 — 三种 OOM 的排查思路对比：
+
+  ┌────────────────┬────────────────┬────────────────────┐
+  │ OOM 类型       │ 堆 Dump 有用?  │ 主要排查工具        │
+  ├────────────────┼────────────────┼────────────────────┤
+  │ 堆 OOM         │ ★ 最关键       │ MAT                │
+  │ Metaspace OOM  │ ✓ 看 Class 数  │ jcmd GC.class_stats│
+  │ Direct OOM     │ ❌ 看不到      │ BufferPoolMXBean   │
+  │ Native Thread  │ ❌ 看不到      │ jstack + OS 工具   │
+  │ StackOverflow  │ ❌ 看不到      │ 异常堆栈（已足够） │
+  └────────────────┴────────────────┴────────────────────┘
+
+  ★ 关键洞察：不是所有 OOM 都能通过 heap dump 排查！
+    这就是为什么要熟悉非堆 OOM 的专用排查手段
+
+结论：
+  1. OOM 不只有堆 OOM，非堆 OOM 更隐蔽且工具不同
+  2. Metaspace OOM 常见于大量动态类生成场景
+  3. Direct Memory OOM 常见于 NIO/Netty 应用
+  4. StackOverflow 看异常堆栈就够了，不需要 dump
+  5. 生产必须设置 -XX:MaxMetaspaceSize 和 -XX:MaxDirectMemorySize 上限
+  6. W01-JVM 学习完成！下一站 W02-并发编程

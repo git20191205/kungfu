@@ -29,13 +29,13 @@
 
   使用 AnnotationConfigApplicationContext 启动...
 
-    [BeanFactoryPostProcessor] 容器中共有 8 个 BeanDefinition
+    [BeanFactoryPostProcessor] 容器中共有 9 个 BeanDefinition
     [BeanFactoryPostProcessor] 自定义 Bean 列表：
-      - iocRefreshFlowDemo.AppConfig -> com.kungfu.spring.d15_ioc_startup.IocRefreshFlowDemo$AppConfig
+      - iocRefreshFlowDemo.AppConfig -> com.kungfu.spring.d15_ioc_startup.IocRefreshFlowDemo$AppConfig$$EnhancerBySpringCGLIB$$b4b02321
       - d15DemoService -> com.kungfu.spring.d15_ioc_startup.IocRefreshFlowDemo$DemoService
       - d15ObserverProcessor -> com.kungfu.spring.d15_ioc_startup.IocRefreshFlowDemo$ObserverBeanFactoryPostProcessor
-    [AppConfig] @Bean greeting() 被调用 —— 注册 Bean 定义
     [DemoService] @PostConstruct 初始化回调
+    [AppConfig] @Bean greeting() 被调用 —— 注册 Bean 定义
 
   --- 容器启动完成，开始使用 Bean ---
 
@@ -43,8 +43,8 @@
   greeting Bean = Hello from Spring IoC!
 
   BeanFactory 类型: DefaultListableBeanFactory
-  BeanDefinition 总数: 8
-  单例 Bean 总数: 12
+  BeanDefinition 总数: 9
+  单例 Bean 总数: 17
 
   容器已关闭
 
@@ -84,3 +84,4 @@
   3. BeanFactoryPostProcessor 在 Bean 实例化之前执行，可以修改 BeanDefinition
   4. BeanPostProcessor 在 Bean 实例化之后执行，可以包装 Bean（AOP 的入口）
   5. ApplicationContext = BeanFactory + 事件机制 + 国际化 + AOP + 资源加载
+

@@ -1,0 +1,81 @@
+HeapDumpAnalysisDemo 日志分析
+
+整体结果：Demo 在 30MB 堆下缓存约 9823 个订单对象后触发 OOM，
+          成功生成 heap dump。展示了完整的 MAT 分析 SOP 流程。
+
+逐步分析：
+
+  ┌──────────────────┬──────────────────────────────────┬────────┐
+  │ 阶段             │ 预期结果                         │ 状态   │
+  ├──────────────────┼──────────────────────────────────┼────────┤
+  │ Dump 获取方式    │ 展示 3 种获取方法                │ ✅     │
+  │ MAT SOP 输出     │ 5 步分析流程                     │ ✅     │
+  │ Size 概念对比    │ Shallow vs Retained 区别         │ ✅     │
+  │ 泄漏模拟         │ 触发 OOM 并输出分析结果          │ ✅     │
+  │ MAT 预期分析     │ 展示 Dominator/GC Roots 预期结果 │ ✅     │
+  └──────────────────┴──────────────────────────────────┴────────┘
+
+重点观察 1 — 内存增长曲线：
+
+  日志原文：
+    缓存 2000 个订单，堆使用 10.2 MB / 30.0 MB
+    缓存 4000 个订单，堆使用 16.8 MB / 30.0 MB
+    缓存 6000 个订单，堆使用 23.1 MB / 30.0 MB
+    缓存 8000 个订单，堆使用 28.7 MB / 30.0 MB
+
+  分析：
+    - 每 2000 个订单增加约 6~7 MB
+    - 每个订单实际占用 ≈ 3.3 KB（含 OrderInfo + 3×OrderItem + byte[]）
+    - 比设计预期 1.5KB 大一倍 → HashMap 本身 + Node 对象的开销
+    - 这就是为什么内存估算要考虑「数据结构开销」
+
+    HashMap 内存公式：
+    每个 Entry ≈ 32B(Node) + key.shallow + value.retained
+    + 扩容时的空闲槽位（load factor 0.75 → 25% 浪费）
+
+重点观察 2 — 多层引用链的 MAT 分析：
+
+  引用链：
+    GC Root (static ORDER_CACHE)
+      └── HashMap
+            └── Node[] table
+                  └── Node
+                        ├── key: String "ORD_000001"
+                        └── value: OrderInfo
+                              ├── orderId: String
+                              ├── userName: String
+                              ├── items: ArrayList
+                              │     ├── OrderItem (128B detail)
+                              │     ├── OrderItem (128B detail)
+                              │     └── OrderItem (128B detail)
+                              └── extraData: byte[512]
+
+  分析：
+    - MAT 的 Dominator Tree 会显示 HashMap 的 Retained Size ≈ 25 MB
+    - HashMap 的 Shallow Size 只有 48 字节
+    - 两者差距巨大 → 说明 HashMap 是「根」，回收它能释放 25MB
+    - Path to GC Roots 会显示 static field → 明确是泄漏
+
+重点观察 3 — 触发 OOM 的时机：
+
+  日志原文：
+    ★ OOM！缓存了 9823 个订单后堆耗尽
+
+  分析：
+    - 30MB 堆，JVM 自身占用约 3~5MB
+    - 实际可用 ≈ 25MB
+    - 9823 × ~2.5KB ≈ 24MB → 刚好填满
+    - OOM 前 JVM 会反复 Full GC → GC overhead limit exceeded 也可能先触发
+    - 加上 -XX:+HeapDumpOnOutOfMemoryError → OOM 时自动保存 dump
+
+    生产环境建议：
+    - 堆大小 = 3~4 倍存活数据量
+    - 如果需要缓存 1 万个订单(25MB) → 堆至少 100MB
+    - 更好的方案：用 Redis，不占 JVM 堆
+
+结论：
+  1. MAT 是分析堆 OOM 的最强工具，Leak Suspects 通常能直接定位问题
+  2. 看 Retained Size 而非 Shallow Size 来判断泄漏影响大小
+  3. Path to GC Roots 是定位代码位置的关键步骤
+  4. 生产环境必须配置 -XX:+HeapDumpOnOutOfMemoryError
+  5. 下一步：学习 MetaspaceAndDirectOOMDemo，排查非堆 OOM

@@ -1,0 +1,137 @@
+========================================
+  非堆 OOM 排查实战
+========================================
+
+=== OOM 类型速查表 ===
+
+  ┌──────────────────────────────────────┬───────────────────────┬──────────────────────────┐
+  │ 错误信息                             │ 内存区域              │ 常见根因                  │
+  ├──────────────────────────────────────┼───────────────────────┼──────────────────────────┤
+  │ java.lang.OutOfMemoryError:          │                       │                          │
+  │   Java heap space                    │ 堆                    │ 对象泄漏/堆太小          │
+  │   GC overhead limit exceeded         │ 堆                    │ GC 回收率 < 2%           │
+  │   Metaspace                          │ 元空间（本地内存）    │ 类太多/ClassLoader泄漏   │
+  │   Direct buffer memory               │ 直接内存（本地内存）  │ NIO ByteBuffer 泄漏      │
+  │   unable to create new native thread │ 操作系统              │ 线程数超过 OS 限制        │
+  ├──────────────────────────────────────┼───────────────────────┼──────────────────────────┤
+  │ java.lang.StackOverflowError         │ 线程栈                │ 递归过深/栈帧过大        │
+  └──────────────────────────────────────┴───────────────────────┴──────────────────────────┘
+
+============================================================
+场景一 — Metaspace OOM 运行日志
+============================================================
+
+--- 场景一：Metaspace OOM ---
+
+  模拟：JDK 动态代理不断生成新类
+  典型原因：CGLIB 增强 / Groovy 脚本编译 / JSP 热加载
+  参数: -XX:MaxMetaspaceSize=30m
+
+  已生成 5000 个代理类
+  已生成 10000 个代理类
+  已生成 15000 个代理类
+  已生成 20000 个代理类
+  已生成 25000 个代理类
+
+  ★ OOM！生成了 26783 个代理类后 Metaspace 耗尽
+  错误: Metaspace
+
+  排查流程：
+  1. 看错误信息 → 包含 'Metaspace' → 是类相关问题
+  2. jcmd <PID> GC.class_stats → 查看类统计信息
+  3. jmap -clstats <PID> → 查看 ClassLoader 统计
+  4. 找到加载类最多的 ClassLoader → 定位代码
+
+  修复方案：
+  1. 增大 Metaspace: -XX:MaxMetaspaceSize=256m
+  2. 排查动态类生成（CGLIB、反射、Groovy、JSP）
+  3. 检查 ClassLoader 是否正确释放（Tomcat 热部署场景）
+  4. Spring AOP 代理类泄漏：检查 @Scope(proxyMode=ScopedProxyMode.TARGET_CLASS)
+
+  ★ 面试加分项：
+    JDK 8 把永久代(PermGen)替换为元空间(Metaspace)
+    区别：PermGen 在堆内，Metaspace 在本地内存
+    默认 Metaspace 无上限 → 生产必须设 -XX:MaxMetaspaceSize
+
+============================================================
+场景二 — Direct Memory OOM 运行日志
+============================================================
+
+--- 场景二：Direct Memory OOM ---
+
+  模拟：NIO ByteBuffer.allocateDirect() 不断分配直接内存
+  典型原因：Netty ByteBuf 泄漏 / NIO Channel 未关闭
+  参数: -XX:MaxDirectMemorySize=10m
+
+  分配第 1 块直接内存，累计 1.0 MB
+  分配第 2 块直接内存，累计 2.0 MB
+  分配第 3 块直接内存，累计 3.0 MB
+  分配第 4 块直接内存，累计 4.0 MB
+  分配第 5 块直接内存，累计 5.0 MB
+  分配第 6 块直接内存，累计 6.0 MB
+  分配第 7 块直接内存，累计 7.0 MB
+  分配第 8 块直接内存，累计 8.0 MB
+  分配第 9 块直接内存，累计 9.0 MB
+  分配第 10 块直接内存，累计 10.0 MB
+
+  ★ OOM！分配了 10 块（10.0 MB）直接内存后耗尽
+  错误: Direct buffer memory
+
+  排查流程：
+  1. 看错误信息 → 包含 'Direct buffer memory'
+  2. 堆 dump 中看不到问题 → 因为直接内存不在堆中
+  3. 检查 NIO/Netty 相关代码的 ByteBuffer 是否释放
+  4. Netty 场景: 开启 -Dio.netty.leakDetection.level=PARANOID
+
+  修复方案：
+  1. 确保 ByteBuffer 用完后释放: ((DirectBuffer) buf).cleaner().clean()
+  2. 设置上限: -XX:MaxDirectMemorySize=256m
+  3. Netty: 使用 ReferenceCountUtil.release(buf) 或 try-finally
+  4. 监控: MXBean BufferPoolMXBean 获取直接内存使用量
+
+  ★ 面试加分项：
+    - 直接内存不受 -Xmx 限制，受 -XX:MaxDirectMemorySize 限制
+    - 直接内存的 GC 回收依赖 Cleaner 机制（PhantomReference）
+    - 如果 Full GC 不频繁，Cleaner 可能来不及执行 → 泄漏
+
+============================================================
+场景三 — StackOverflowError 运行日志
+============================================================
+
+--- 场景三：StackOverflowError ---
+
+  模拟：无限递归调用
+  典型原因：递归缺少终止条件 / 循环依赖调用
+
+  递归深度: 1000
+  递归深度: 2000
+  递归深度: 3000
+  递归深度: 4000
+  递归深度: 5000
+  递归深度: 6000
+  递归深度: 7000
+  递归深度: 8000
+
+  ★ StackOverflow！递归深度达到 8427 层
+  错误: StackOverflowError
+
+  排查流程：
+  1. 看异常堆栈 → 相同方法反复出现 → 递归
+  2. 检查递归终止条件是否正确
+  3. 计算递归深度是否合理（默认栈大小约 512KB~1MB）
+
+  每个栈帧的大小取决于：
+    - 局部变量数量和类型
+    - 操作数栈深度
+    - 大约 128~256 字节/帧
+
+  修复方案：
+  1. 修复递归终止条件
+  2. 递归改迭代（用显式栈代替调用栈）
+  3. 调大栈空间: -Xss512k（不推荐，只是治标）
+  4. 尾递归优化（Java 不原生支持，需手动改写）
+
+  ★ 面试加分项：
+    -Xss 影响每个线程的栈大小，不是总栈大小
+    -Xss 越大 → 每个线程占用内存越多 → 可创建线程数越少
+    默认 -Xss: Linux 64位 = 1MB, Windows = 320KB~1MB

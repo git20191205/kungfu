@@ -1,0 +1,55 @@
+========================================
+  非堆 OOM 排查实战
+========================================
+
+=== OOM 类型速查表 ===
+
+  ┌──────────────────────────────────────┬───────────────────────┬──────────────────────────┐
+  │ 错误信息                             │ 内存区域              │ 常见根因                  │
+  ├──────────────────────────────────────┼───────────────────────┼──────────────────────────┤
+  │ java.lang.OutOfMemoryError:          │                       │                          │
+  │   Java heap space                    │ 堆                    │ 对象泄漏/堆太小          │
+  │   GC overhead limit exceeded         │ 堆                    │ GC 回收率 < 2%           │
+  │   Metaspace                          │ 元空间（本地内存）    │ 类太多/ClassLoader泄漏   │
+  │   Direct buffer memory               │ 直接内存（本地内存）  │ NIO ByteBuffer 泄漏      │
+  │   unable to create new native thread │ 操作系统              │ 线程数超过 OS 限制        │
+  ├──────────────────────────────────────┼───────────────────────┼──────────────────────────┤
+  │ java.lang.StackOverflowError         │ 线程栈                │ 递归过深/栈帧过大        │
+  └──────────────────────────────────────┴───────────────────────┴──────────────────────────┘
+
+--- 场景二：Direct Memory OOM ---
+
+  模拟：NIO ByteBuffer.allocateDirect() 不断分配直接内存
+  典型原因：Netty ByteBuf 泄漏 / NIO Channel 未关闭
+  参数: -XX:MaxDirectMemorySize=10m
+
+  分配第 1 块直接内存，累计 1.0 MB
+  分配第 2 块直接内存，累计 2.0 MB
+  分配第 3 块直接内存，累计 3.0 MB
+  分配第 4 块直接内存，累计 4.0 MB
+  分配第 5 块直接内存，累计 5.0 MB
+  分配第 6 块直接内存，累计 6.0 MB
+  分配第 7 块直接内存，累计 7.0 MB
+  分配第 8 块直接内存，累计 8.0 MB
+  分配第 9 块直接内存，累计 9.0 MB
+  分配第 10 块直接内存，累计 10.0 MB
+
+  ★ OOM！分配了 10 块（10.0 MB）直接内存后耗尽
+  错误: Direct buffer memory
+
+  排查流程：
+  1. 看错误信息 → 包含 'Direct buffer memory'
+  2. 堆 dump 中看不到问题 → 因为直接内存不在堆中
+  3. 检查 NIO/Netty 相关代码的 ByteBuffer 是否释放
+  4. Netty 场景: 开启 -Dio.netty.leakDetection.level=PARANOID
+
+  修复方案：
+  1. 确保 ByteBuffer 用完后释放: ((DirectBuffer) buf).cleaner().clean()
+  2. 设置上限: -XX:MaxDirectMemorySize=256m
+  3. Netty: 使用 ReferenceCountUtil.release(buf) 或 try-finally
+  4. 监控: MXBean BufferPoolMXBean 获取直接内存使用量
+
+  ★ 面试加分项：
+    - 直接内存不受 -Xmx 限制，受 -XX:MaxDirectMemorySize 限制
+    - 直接内存的 GC 回收依赖 Cleaner 机制（PhantomReference）
+    - 如果 Full GC 不频繁，Cleaner 可能来不及执行 → 泄漏

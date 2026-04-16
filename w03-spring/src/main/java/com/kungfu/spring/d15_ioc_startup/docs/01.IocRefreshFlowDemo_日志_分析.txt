@@ -1,0 +1,174 @@
+IocRefreshFlowDemo 日志分析
+
+整体结果：Demo 成功演示了 Spring IoC 容器 refresh() 启动的完整 12 步流程。
+          通过 AnnotationConfigApplicationContext 启动真实容器，
+          用 BeanFactoryPostProcessor 观察到 refresh() 第 5 步的内部状态。
+
+逐步分析：
+
+  ┌──────────────────────────┬──────────────────────────────────────┬────────┐
+  │ 步骤                     │ 预期结果                             │ 状态   │
+  ├──────────────────────────┼──────────────────────────────────────┼────────┤
+  │ 12 步流程打印            │ ASCII 表格完整展示                   │ ✅     │
+  │ 容器启动                 │ AnnotationConfigApplicationContext   │ ✅     │
+  │ ObserverBFPP 触发        │ 在 Bean 实例化前打印 BD 数量         │ ✅     │
+  │ @Bean greeting() 注册    │ 被 BFPP 观察时尚未调用方法本身       │ ✅     │
+  │ @PostConstruct 回调      │ 在 Bean 实例化完成后触发             │ ✅     │
+  │ Bean 查找与使用          │ getBean() 成功返回                   │ ✅     │
+  │ 容器关闭                 │ ctx.close() 触发销毁回调             │ ✅     │
+  └──────────────────────────┴──────────────────────────────────────┴────────┘
+
+重点观察 1 — BeanFactoryPostProcessor 执行时机：
+
+  日志原文：
+    [BeanFactoryPostProcessor] 容器中共有 8 个 BeanDefinition
+    [BeanFactoryPostProcessor] 自定义 Bean 列表：
+      - iocRefreshFlowDemo.AppConfig -> ...AppConfig
+      - d15DemoService -> ...DemoService
+      - d15ObserverProcessor -> ...ObserverBeanFactoryPostProcessor
+    [AppConfig] @Bean greeting() 被调用 —— 注册 Bean 定义
+    [DemoService] @PostConstruct 初始化回调
+
+  分析：
+    这段日志揭示了 refresh() 的关键时序：
+
+    1. ObserverBeanFactoryPostProcessor 最先被调用（refresh 第 5 步）
+       - 此时 BeanDefinition 已注册（8 个），但 Bean 还没有被实例化
+       - 它可以看到所有即将被创建的 Bean 的「图纸」
+
+    2. 之后 @Bean greeting() 方法才被调用（refresh 第 11 步）
+       - 这是因为 @Bean 方法实际上是 Spring 注册的 FactoryMethod
+       - Bean 实例化时才会调用它来产生 Bean 实例
+
+    3. @PostConstruct 在 Bean 创建完成后触发（也是第 11 步内部）
+       - 顺序：实例化 → 属性填充 → BeanPostProcessor.before → init → BPP.after
+
+    这就是 BFPP 和 BPP 的关键区别：
+    - BeanFactoryPostProcessor (BFPP): 处理 BeanDefinition（图纸）
+    - BeanPostProcessor (BPP): 处理 Bean 实例（实物）
+
+重点观察 2 — BeanDefinition 数量 vs 单例 Bean 数量：
+
+  日志原文：
+    BeanDefinition 总数: 8
+    单例 Bean 总数: 12
+
+  分析：
+    为什么单例数（12）比 BD 数（8）多？
+
+    BeanDefinition 总数 8 包含：
+    - Spring 内置的基础设施 Bean（3个）：
+      * internalConfigurationAnnotationProcessor
+      * internalAutowiredAnnotationProcessor
+      * internalCommonAnnotationProcessor
+    - Spring 内置 EventListener 相关（1个）
+    - 我们定义的 Bean（4个）：
+      * AppConfig 配置类
+      * greeting (@Bean 方法)
+      * DemoService
+      * ObserverBeanFactoryPostProcessor
+
+    单例 Bean 总数 12 多出的 4 个是：
+    - 容器启动时创建的基础设施单例
+    - 如 Environment、SystemProperties、SystemEnvironment 等
+    - 这些不需要 BeanDefinition，是容器直接放入 SingletonObjects 的
+
+    ★ 这是面试中容易踩的陷阱：
+      "BeanFactory 启动时创建多少 Bean？" 答案不止 BeanDefinition 的数量
+
+重点观察 3 — DefaultListableBeanFactory 的角色：
+
+  日志原文：
+    BeanFactory 类型: DefaultListableBeanFactory
+
+  分析：
+    DefaultListableBeanFactory 是 Spring 中最核心的 BeanFactory 实现。
+
+    类继承关系（自顶向下）：
+    BeanFactory (接口)
+      ↓
+    HierarchicalBeanFactory (接口)
+      ↓
+    ListableBeanFactory (接口)
+      ↓
+    AutowireCapableBeanFactory (接口)
+      ↓
+    ConfigurableListableBeanFactory (接口)
+      ↓
+    AbstractBeanFactory (抽象类，提供 getBean 骨架)
+      ↓
+    AbstractAutowireCapableBeanFactory (抽象类，提供 createBean 实现)
+      ↓
+    DefaultListableBeanFactory (最终实现，提供 BeanDefinition 注册与预实例化)
+
+    ApplicationContext 不直接继承 BeanFactory，而是「组合」它：
+    AnnotationConfigApplicationContext 持有一个 DefaultListableBeanFactory 实例
+    通过 ctx.getBeanFactory() 可以获取这个底层 BeanFactory
+
+    ★ 面试问题：
+    Q: Spring 中 BeanFactory 和 ApplicationContext 的关系？
+    A: ApplicationContext 通过组合（不是继承）的方式持有 BeanFactory，
+       在 BeanFactory 基础上扩展了事件、国际化、AOP、资源加载等能力。
+
+重点观察 4 — refresh() 的关键步骤（第 5 和第 11）：
+
+  日志原文：
+    核心步骤标记 ★：
+      第5步：BeanFactoryPostProcessor 可以修改 BeanDefinition
+      第11步：所有单例 Bean 在这里被创建
+
+  分析：
+    为什么第 5 步和第 11 步最重要？
+
+    第 5 步 invokeBeanFactoryPostProcessors:
+    - Spring Boot 的自动装配入口 = ConfigurationClassPostProcessor (BFPP)
+    - @ComponentScan 在这里处理，完成包扫描
+    - @Import、@ImportResource 也在这里处理
+    - 任何想修改 BeanDefinition 的扩展都必须用 BFPP
+    - 典型应用：MyBatis 的 @MapperScan 扫描并注册 Mapper 接口
+
+    第 11 步 finishBeanFactoryInitialization:
+    - 触发所有非懒加载单例 Bean 的创建
+    - Bean 生命周期的所有阶段都在这里执行：
+      * 实例化（反射 / 工厂方法）
+      * 属性填充（@Autowired / @Value）
+      * Aware 回调
+      * BeanPostProcessor.before（AOP 代理可能在这里生成）
+      * 初始化（@PostConstruct / afterPropertiesSet / init-method）
+      * BeanPostProcessor.after（AOP 代理在这里生成）
+
+    其他步骤（3、4、6-10、12）主要是「基础设施准备」，
+    不直接参与 Bean 的创建，面试中可以快速带过。
+
+重点观察 5 — Bean 名称的生成规则：
+
+  日志原文：
+    - iocRefreshFlowDemo.AppConfig -> ...AppConfig
+    - d15DemoService -> ...DemoService
+    - d15ObserverProcessor -> ...ObserverBeanFactoryPostProcessor
+
+  分析：
+    Spring 默认 Bean 名称生成规则（由 AnnotationBeanNameGenerator 处理）：
+
+    1. 没有显式指定名称时 → 类名首字母小写
+       例：DemoService → demoService
+
+    2. @Component("xxx") 显式指定 → 使用指定名称
+       例：@Component("d15DemoService") → d15DemoService
+
+    3. 内部类（static 嵌套类） → 外部类短名 + "." + 内部类短名
+       例：iocRefreshFlowDemo.AppConfig（这是 AppConfig 的 Bean 名）
+
+    4. @Bean 方法 → 方法名
+       例：greeting() 方法 → greeting
+
+    在 Demo 中我们显式指定了 "d15DemoService" 和 "d15ObserverProcessor"
+    以避免与其他 Demo 包中的同名类冲突。
+
+结论：
+  1. refresh() 12 步是 Spring 启动的骨架，理解它就理解了 Spring
+  2. 第 5 步 (BFPP) 和 第 11 步 (Bean 实例化) 是最重要的两步
+  3. BeanFactoryPostProcessor 操作 BeanDefinition，BeanPostProcessor 操作 Bean 实例
+  4. DefaultListableBeanFactory 是 Spring 最核心的 BeanFactory 实现
+  5. ApplicationContext 通过组合持有 BeanFactory，不是继承关系
+  6. 下一步：D16 学习 Bean 的完整生命周期，深入第 11 步的内部细节

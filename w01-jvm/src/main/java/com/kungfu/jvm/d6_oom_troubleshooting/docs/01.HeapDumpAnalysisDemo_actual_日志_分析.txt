@@ -1,0 +1,77 @@
+HeapDumpAnalysisDemo 实际运行日志分析
+
+运行环境：JDK 1.8.0_441, Windows 11
+参数：-Xms30m -Xmx30m -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=./oom_dump.hprof
+
+整体结果：缓存 18796 个订单后触发 OOM，成功生成 34.5MB heap dump 文件。
+
+与编造日志的关键差异：
+
+  ┌───────────────────┬──────────────┬──────────────────────────┐
+  │ 数据点            │ 编造值       │ 实际值                   │
+  ├───────────────────┼──────────────┼──────────────────────────┤
+  │ OOM 时订单数      │ 9823 个      │ 18796 个                 │
+  │ 错误类型          │ Java heap space │ GC overhead limit exceeded │
+  │ 2000订单时堆使用  │ 10.2 MB      │ 7.7 MB                   │
+  │ dump 文件大小     │ 未提及       │ 34,542,425 bytes (33MB)  │
+  │ 报告步骤          │ 2000/4000/.. │ 每2000一报，直到18000    │
+  └───────────────────┴──────────────┴──────────────────────────┘
+
+重点观察 1 — OOM 数量差异巨大（9823 vs 18796）：
+
+  编造估算：30MB ÷ ~3KB/订单 ≈ 10000
+  实际结果：18796 个
+
+  为什么实际能装更多？
+  - 编造时假设每个订单 3KB，但实际对象在 JVM 中的内存布局更紧凑
+  - HashMap 的负载因子 0.75 → 扩容时有空闲槽，但也意味着内存利用率更高
+  - PS GC 在 OOM 前做了多次 Full GC，回收了临时对象（如 String 拼接的中间结果）
+  - 实际每个订单有效占用 ≈ 30MB / 18796 ≈ 1.6KB
+
+重点观察 2 — 错误类型不同：
+
+  编造：java.lang.OutOfMemoryError: Java heap space
+  实际：java.lang.OutOfMemoryError: GC overhead limit exceeded
+
+  "GC overhead limit exceeded" 含义：
+  - JVM 检测到 98% 以上的时间在做 GC，但回收了不到 2% 的堆
+  - 这比 "Java heap space" 更精确地描述了问题：不是「突然满了」，
+    而是「GC 拼命回收但几乎回收不了任何东西」
+  - 触发条件由 -XX:+UseGCOverheadLimit 控制（默认开启）
+
+  面试加分点：
+  Q: "GC overhead limit exceeded" 和 "Java heap space" 有什么区别？
+  A: 前者是 GC 效率过低触发的保护机制，后者是直接分配失败。
+     前者说明存在大量不可回收对象（泄漏特征），后者可能只是一次性大分配。
+
+重点观察 3 — 内存增长曲线：
+
+  实际增长曲线：
+    2000 订单:  7.7 MB
+    4000 订单:  9.7 MB (+2.0)
+    6000 订单: 11.7 MB (+2.0)
+    8000 订单: 13.5 MB (+1.8)
+   10000 订单: 19.1 MB (+5.6) ← 可能触发了 HashMap resize
+   12000 订单: 20.5 MB (+1.4)
+   14000 订单: 22.0 MB (+1.5)
+   16000 订单: 27.4 MB (+5.4) ← 再次 resize
+   18000 订单: 27.3 MB (-0.1) ← Full GC 回收了少量临时对象
+
+  10000 和 16000 附近的跳跃是 HashMap 扩容（resize）导致的：
+  - HashMap 在 capacity × loadFactor 时扩容
+  - 扩容时创建新的 Node[] 数组（原大小的 2 倍）
+  - 旧数组在 rehash 后被 GC 回收
+
+重点观察 4 — heap dump 文件：
+
+  实际生成了 oom_dump.hprof（34.5MB）
+  可以用 MAT 打开分析：
+  - File → Open Heap Dump → oom_dump.hprof
+  - Leak Suspects 应报告 HashMap 是主要嫌疑对象
+  - Dominator Tree 中 HashMap 的 Retained Size ≈ 25-28 MB
+
+结论：
+  1. 实际能装的订单数（18796）是编造值（9823）的近 2 倍
+  2. OOM 类型为 "GC overhead limit exceeded" 而非 "Java heap space"
+  3. 内存增长曲线中的跳跃点揭示了 HashMap 扩容行为
+  4. heap dump 已生成，可用 MAT 进行实际分析练习

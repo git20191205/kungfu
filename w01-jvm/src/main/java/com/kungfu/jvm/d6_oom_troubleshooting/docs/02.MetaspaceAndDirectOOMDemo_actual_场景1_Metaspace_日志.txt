@@ -1,0 +1,45 @@
+========================================
+  非堆 OOM 排查实战
+========================================
+
+=== OOM 类型速查表 ===
+
+  ┌──────────────────────────────────────┬───────────────────────┬──────────────────────────┐
+  │ 错误信息                             │ 内存区域              │ 常见根因                  │
+  ├──────────────────────────────────────┼───────────────────────┼──────────────────────────┤
+  │ java.lang.OutOfMemoryError:          │                       │                          │
+  │   Java heap space                    │ 堆                    │ 对象泄漏/堆太小          │
+  │   GC overhead limit exceeded         │ 堆                    │ GC 回收率 < 2%           │
+  │   Metaspace                          │ 元空间（本地内存）    │ 类太多/ClassLoader泄漏   │
+  │   Direct buffer memory               │ 直接内存（本地内存）  │ NIO ByteBuffer 泄漏      │
+  │   unable to create new native thread │ 操作系统              │ 线程数超过 OS 限制        │
+  ├──────────────────────────────────────┼───────────────────────┼──────────────────────────┤
+  │ java.lang.StackOverflowError         │ 线程栈                │ 递归过深/栈帧过大        │
+  └──────────────────────────────────────┴───────────────────────┴──────────────────────────┘
+
+--- 场景一：Metaspace OOM ---
+
+  模拟：JDK 动态代理不断生成新类
+  典型原因：CGLIB 增强 / Groovy 脚本编译 / JSP 热加载
+  参数: -XX:MaxMetaspaceSize=30m
+
+
+  ★ OOM！生成了 4369 个代理类后 Metaspace 耗尽
+  错误: Metaspace
+
+  排查流程：
+  1. 看错误信息 → 包含 'Metaspace' → 是类相关问题
+  2. jcmd <PID> GC.class_stats → 查看类统计信息
+  3. jmap -clstats <PID> → 查看 ClassLoader 统计
+  4. 找到加载类最多的 ClassLoader → 定位代码
+
+  修复方案：
+  1. 增大 Metaspace: -XX:MaxMetaspaceSize=256m
+  2. 排查动态类生成（CGLIB、反射、Groovy、JSP）
+  3. 检查 ClassLoader 是否正确释放（Tomcat 热部署场景）
+  4. Spring AOP 代理类泄漏：检查 @Scope(proxyMode=ScopedProxyMode.TARGET_CLASS)
+
+  ★ 面试加分项：
+    JDK 8 把永久代(PermGen)替换为元空间(Metaspace)
+    区别：PermGen 在堆内，Metaspace 在本地内存
+    默认 Metaspace 无上限 → 生产必须设 -XX:MaxMetaspaceSize
