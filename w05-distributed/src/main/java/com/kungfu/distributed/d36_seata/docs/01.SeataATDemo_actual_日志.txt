@@ -1,0 +1,121 @@
+========================================
+  Seata AT 模式 — 原理模拟
+========================================
+
+=== 一、Seata 架构 ===
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │                    Seata 三大角色                             │
+  ├─────────────────────────────────────────────────────────────┤
+  │                                                               │
+  │  TC (Transaction Coordinator) — 事务协调器                   │
+  │  独立部署的 Seata Server，维护全局事务状态                    │
+  │                                                               │
+  │  TM (Transaction Manager) — 事务管理器                       │
+  │  标注 @GlobalTransactional 的业务方法，发起全局事务           │
+  │                                                               │
+  │  RM (Resource Manager) — 资源管理器                          │
+  │  管理分支事务（每个微服务的数据库操作）                       │
+  │                                                               │
+  └─────────────────────────────────────────────────────────────┘
+
+  交互流程：
+    1. TM 向 TC 申请开启全局事务 → 获得 XID
+    2. TM 调用各微服务（XID 通过 RPC 传播）
+    3. 各 RM 向 TC 注册分支事务
+    4. 各 RM 执行本地事务并提交
+    5. TM 通知 TC 全局提交/回滚
+    6. TC 通知各 RM 提交/回滚分支事务
+
+=== 二、AT 模式原理 ===
+
+  AT = Automatic Transaction（自动事务）
+
+  一阶段（业务 SQL 执行）：
+  ┌────────────────────────────────────────────────────────────┐
+  │ 1. 拦截业务 SQL: UPDATE t_stock SET quantity=90 WHERE id=1 │
+  │ 2. 查询 before image: SELECT * WHERE id=1 → quantity=100  │
+  │ 3. 执行业务 SQL: quantity 100 → 90                         │
+  │ 4. 查询 after image: SELECT * WHERE id=1 → quantity=90    │
+  │ 5. 写入 undo_log: {before: 100, after: 90}                 │
+  │ 6. 提交本地事务（业务数据 + undo_log 一起提交）            │
+  └────────────────────────────────────────────────────────────┘
+
+  二阶段 — 提交：
+    → 异步删除 undo_log（数据已经是正确的）
+
+  二阶段 — 回滚：
+  ┌────────────────────────────────────────────────────────────┐
+  │ 1. 读取 undo_log 的 before image                           │
+  │ 2. 校验 after image（防止脏写）                            │
+  │ 3. 生成反向 SQL: UPDATE t_stock SET quantity=100 WHERE id=1│
+  │ 4. 执行反向 SQL → 数据恢复                                 │
+  │ 5. 删除 undo_log                                           │
+  └────────────────────────────────────────────────────────────┘
+
+  ✓ 表创建完成: t_stock_d36, t_undo_log
+
+=== 三、模拟一阶段（业务执行 + 写 undo_log）===
+
+  全局事务 XID: XID_1776652909865
+  业务 SQL: UPDATE t_stock_d36 SET quantity = quantity - 10 WHERE id = 1
+
+  1. Before Image: {"id":1, "product_name":"iPhone", "quantity":100}
+  2. 执行 SQL: quantity 100 → 90
+  3. After Image: {"id":1, "product_name":"iPhone", "quantity":90}
+  4. 写入 undo_log
+  5. COMMIT（业务数据 + undo_log 一起提交）
+  → 一阶段完成！数据已持久化，undo_log 已记录
+
+=== 四、模拟二阶段回滚（用 undo_log 恢复数据）===
+
+  场景：TC 通知回滚（如下游服务失败）
+
+  1. 读取 undo_log:
+     before_image: {"id":1, "product_name":"iPhone", "quantity":100}
+     after_image: {"id":1, "product_name":"iPhone", "quantity":90}
+  2. 校验当前数据: quantity=90 == after_image.quantity=90 → ✓ 一致
+  3. 生成反向 SQL: UPDATE t_stock_d36 SET quantity=100 WHERE id=1
+  4. 标记 undo_log 为 ROLLBACKED
+  5. COMMIT → 数据已恢复！
+
+  验证: quantity = 100 (恢复到 100) ✓
+
+=== 五、Seata 生产配置模板 ===
+
+  application.yml（微服务端）：
+  ┌────────────────────────────────────────────────────┐
+  │ seata:                                             │
+  │   enabled: true                                    │
+  │   tx-service-group: my_tx_group                    │
+  │   service:                                         │
+  │     vgroup-mapping:                                │
+  │       my_tx_group: default                         │
+  │   registry:                                        │
+  │     type: nacos                                    │
+  │     nacos:                                         │
+  │       server-addr: localhost:8848                   │
+  │       namespace: seata                             │
+  │       group: SEATA_GROUP                           │
+  └────────────────────────────────────────────────────┘
+
+  使用方式：
+    @GlobalTransactional
+    public void placeOrder(OrderDTO order) {
+        orderService.create(order);      // 分支1: 创建订单
+        stockService.deduct(order);      // 分支2: 扣减库存
+        accountService.debit(order);     // 分支3: 扣减余额
+    }
+    // 任何一个分支失败 → Seata 自动回滚所有分支
+
+  ★ 面试必背：
+    Q: Seata AT 模式原理？
+    A: 一阶段拦截 SQL，记录 before/after image 到 undo_log，提交本地事务
+       二阶段提交 → 删 undo_log；回滚 → 用 before image 生成反向 SQL
+    Q: AT 模式的缺点？
+    A: 1) 需要数据库支持本地事务（不支持 NoSQL）
+       2) 全局锁影响并发性能
+       3) 不适合长事务（锁持有时间长）
+
+  ✓ 测试表已清理
+
