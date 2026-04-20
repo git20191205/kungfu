@@ -1,0 +1,73 @@
+========================================
+  顺序消息 — 保证消费顺序
+========================================
+
+=== 一、问题：多 Partition 无全局顺序 ===
+
+  场景：订单状态变更消息
+    msg1: order_001 → CREATED
+    msg2: order_001 → PAID
+    msg3: order_001 → SHIPPED
+
+  如果 3 条消息分散到不同 Partition：
+    Partition-0: [SHIPPED]   ← Consumer-0 先消费到 SHIPPED
+    Partition-1: [CREATED]   ← Consumer-1 后消费到 CREATED
+    Partition-2: [PAID]      ← Consumer-2 最后消费到 PAID
+    → 消费顺序: SHIPPED → CREATED → PAID → 乱序！
+
+=== 二、解决方案：相同 Key → 相同 Partition ===
+
+  Kafka 分区策略：hash(key) % partitionCount
+  → 相同 key 的消息一定进入相同 Partition
+  → 同一 Partition 内消息严格有序
+
+  用 orderId 作为 key：
+    key=order_001 → hash → Partition-1
+    所有 order_001 的消息都在 Partition-1 中：
+    Partition-1: [CREATED, PAID, SHIPPED] → 有序！
+
+=== 三、发送顺序消息 ===
+
+
+  发送 3 个订单的生命周期消息（key=orderId）：
+
+    key=order_001 value=CREATED → partition=0
+    key=order_001 value=PAID → partition=0
+    key=order_001 value=SHIPPED → partition=0
+    key=order_002 value=CREATED → partition=0
+    key=order_002 value=PAID → partition=0
+    key=order_003 value=CREATED → partition=0
+    key=order_003 value=PAID → partition=0
+    key=order_003 value=SHIPPED → partition=0
+    key=order_003 value=DELIVERED → partition=0
+
+  ★ 观察：相同 orderId 的消息都在同一个 partition
+
+=== 四、顺序消费 ===
+
+
+  按 Partition 分组消费：
+
+  Partition-0: [order_001:CREATED, order_001:PAID, order_001:SHIPPED, order_002:CREATED, order_002:PAID, order_003:CREATED, order_003:PAID, order_003:SHIPPED, order_003:DELIVERED]
+
+  → 每个 Partition 内的消息顺序与发送顺序一致 ✓
+
+=== 五、顺序 vs 并行度的权衡 ===
+
+  ┌──────────────────────┬──────────────────────────────────────────┐
+  │ 方案                 │ 特点                                      │
+  ├──────────────────────┼──────────────────────────────────────────┤
+  │ 单 Partition         │ 全局有序，但无并行度（吞吐低）            │
+  │ 多 Partition + Key ★│ 局部有序（同 Key），高并行度              │
+  │ 多 Partition 无 Key  │ 无序，最高并行度                          │
+  └──────────────────────┴──────────────────────────────────────────┘
+
+  ★ 面试必背：
+    Q: Kafka 怎么保证消息顺序？
+    A: 1) 同一 Partition 内消息严格有序
+       2) 用业务 key（如 orderId）做分区路由
+       3) 同一 key 的消息进入同一 Partition → 局部有序
+       4) Consumer 单线程消费一个 Partition → 消费有序
+    Q: 全局有序怎么做？
+    A: 只用 1 个 Partition（牺牲并行度，不推荐）
+

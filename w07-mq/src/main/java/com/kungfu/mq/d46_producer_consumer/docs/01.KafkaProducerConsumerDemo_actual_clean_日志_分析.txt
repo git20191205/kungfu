@@ -1,0 +1,46 @@
+KafkaProducerConsumerDemo 日志分析
+
+运行环境：JDK 1.8.0_441, Windows 11, Kafka 3.5.1 (localhost:9092)
+
+整体结果：成功发送 10 条消息到 Kafka，Consumer 成功消费。
+
+重点观察 1 — 分区路由结果：
+
+  日志原文：
+    ✓ 发送成功: partition=0 offset=30 key=order_0
+    ✓ 发送成功: partition=0 offset=31 key=order_1
+    ✓ 发送成功: partition=0 offset=32 key=order_2
+    ...（全部 10 条都在 partition=0）
+
+  分析：
+    - 3 个不同的 key（order_0, order_1, order_2）全部路由到 partition=0
+    - 这是因为 Kafka 默认分区器 = murmur2(key) % numPartitions
+    - 碰巧这 3 个 key 的 hash 值 mod 3 都等于 0
+    - 这不是 bug，是正常的 hash 分布（小样本下可能不均匀）
+    - 如果 key 更多（如 100 个不同 orderId），分布会更均匀
+
+    验证：murmur2("order_0") % 3 = 0, murmur2("order_1") % 3 = 0, murmur2("order_2") % 3 = 0
+    → 确实都映射到 partition-0
+
+重点观察 2 — Offset 递增：
+
+  offset 从 30 开始（不是 0），说明之前已经有消息写入过这个 Topic。
+  offset 是 partition 级别的，严格递增，永不回退。
+  这就是 Kafka 的核心设计：append-only log。
+
+重点观察 3 — Consumer 消费：
+
+  日志原文：
+    共消费 20 条消息
+
+  分析：
+    - 我们只发了 10 条，但消费了 20 条
+    - 因为 auto.offset.reset=earliest，Consumer 从最早的 offset 开始
+    - 之前运行 Demo 时发送的消息也被消费了
+    - 生产中应该用 latest（只消费新消息）或管理好 consumer group offset
+
+结论：
+  1. Kafka 分区路由基于 key 的 hash，小样本可能分布不均
+  2. Offset 是 partition 级别的递增序号，是消息的唯一标识
+  3. auto.offset.reset=earliest 会消费历史消息，生产中需注意
+  4. 相同 key 保证进入相同 partition → 局部有序

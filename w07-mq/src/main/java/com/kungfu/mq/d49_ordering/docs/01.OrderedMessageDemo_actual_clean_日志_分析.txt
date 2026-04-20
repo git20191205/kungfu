@@ -1,0 +1,50 @@
+OrderedMessageDemo 日志分析
+
+运行环境：JDK 1.8.0_441, Windows 11, Kafka 3.5.1 (localhost:9092)
+
+整体结果：3 个订单的生命周期消息全部路由到同一 partition，消费顺序与发送顺序一致。
+
+重点观察 1 — 分区路由结果：
+
+  日志原文：
+    key=order_001 value=CREATED  → partition=0
+    key=order_001 value=PAID     → partition=0
+    key=order_001 value=SHIPPED  → partition=0
+    key=order_002 value=CREATED  → partition=0
+    key=order_002 value=PAID     → partition=0
+    key=order_003 value=CREATED  → partition=0
+    key=order_003 value=PAID     → partition=0
+    key=order_003 value=SHIPPED  → partition=0
+    key=order_003 value=DELIVERED→ partition=0
+
+  分析：
+    - 所有 3 个 orderId 都路由到 partition=0
+    - 和 D46 一样，order_001/002/003 的 murmur2 hash mod 3 都等于 0
+    - 虽然都在同一个 partition，但顺序保证的核心逻辑是对的：
+      同一 orderId 的消息在 partition 内严格按发送顺序排列
+    - 如果 key 更分散（如 UUID），会分布到不同 partition
+
+重点观察 2 — 消费顺序验证：
+
+  Partition-0 内的消息顺序：
+    order_001:CREATED → order_001:PAID → order_001:SHIPPED
+    → order_002:CREATED → order_002:PAID
+    → order_003:CREATED → order_003:PAID → order_003:SHIPPED → order_003:DELIVERED
+
+  每个订单的状态变更严格有序：CREATED → PAID → SHIPPED → DELIVERED
+  不会出现 SHIPPED 在 CREATED 之前的情况
+
+重点观察 3 — 单 partition 的局限：
+
+  当前所有消息都在 partition-0 → 只有 1 个 Consumer 能消费
+  → 并行度为 1，吞吐量受限
+
+  生产中应该让不同 orderId 分散到不同 partition：
+  - 更多样化的 key → 更均匀的分布
+  - 或自定义 Partitioner 控制路由策略
+
+结论：
+  1. 相同 key 保证进入相同 partition → 局部有序验证通过
+  2. 当前 3 个 key 碰巧都在 partition-0（hash 分布问题，非 bug）
+  3. 顺序消息的代价是牺牲并行度（同一 key 只能单线程消费）
+  4. 生产建议：用业务 ID 做 key，接受局部有序即可

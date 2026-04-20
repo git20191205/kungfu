@@ -1,0 +1,121 @@
+========================================
+  Kafka 架构
+========================================
+
+=== 一、Kafka 整体架构 ===
+
+  ┌──────────────────────────────────────────────────────────────────┐
+  │                         Kafka Cluster                             │
+  │  ┌──────────┐  ┌──────────┐  ┌──────────┐                       │
+  │  │ Broker-0 │  │ Broker-1 │  │ Broker-2 │                       │
+  │  │ P0(L)    │  │ P1(L)    │  │ P2(L)    │  ← Leader 分散       │
+  │  │ P1(F)    │  │ P2(F)    │  │ P0(F)    │  ← Follower 副本     │
+  │  └──────────┘  └──────────┘  └──────────┘                       │
+  └──────────────────────────────────────────────────────────────────┘
+         ↑ 写入                              ↓ 消费
+  ┌──────────────┐                    ┌──────────────────────┐
+  │  Producer    │                    │  Consumer Group      │
+  │  (生产者)    │                    │  C0←P0  C1←P1  C2←P2│
+  └──────────────┘                    └──────────────────────┘
+
+  核心概念：
+    Topic:     逻辑分类（如 order-topic, payment-topic）
+    Partition: 物理分片，一个 Topic 分成 N 个 Partition
+    Broker:    Kafka 服务器节点
+    Replica:   副本（Leader 读写，Follower 同步备份）
+    Offset:    消息在 Partition 中的唯一序号（递增）
+
+=== 二、分区与副本 ===
+
+  Partition（分区）— 并行度的基本单位：
+  ┌────────────────────────────────────────────────────────────┐
+  │ Topic: order-topic (3 partitions)                          │
+  │                                                            │
+  │ Partition-0: [msg0, msg3, msg6, msg9, ...]  → Broker-0    │
+  │ Partition-1: [msg1, msg4, msg7, msg10, ...] → Broker-1    │
+  │ Partition-2: [msg2, msg5, msg8, msg11, ...] → Broker-2    │
+  │                                                            │
+  │ ★ 同一 Partition 内消息有序，跨 Partition 无序             │
+  └────────────────────────────────────────────────────────────┘
+
+  Replica（副本）— 高可用保障：
+  ┌────────────────────────────────────────────────────────────┐
+  │ Partition-0 (replication-factor=3):                        │
+  │   Leader  (Broker-0): 处理所有读写请求                     │
+  │   Follower(Broker-1): 从 Leader 同步数据                   │
+  │   Follower(Broker-2): 从 Leader 同步数据                   │
+  │                                                            │
+  │ ISR (In-Sync Replicas): 与 Leader 保持同步的副本列表       │
+  │   ISR = [Broker-0, Broker-1, Broker-2]                     │
+  │   如果 Follower 落后太多 → 被踢出 ISR                     │
+  │   Leader 宕机 → 从 ISR 中选新 Leader                      │
+  └────────────────────────────────────────────────────────────┘
+
+=== 三、探索 Kafka 集群 ===
+
+
+  集群节点：
+    0 → localhost:9092
+  Controller: 0
+
+  现有 Topic (5 个)：
+    - demo-d49-ordering
+    - demo-d47-reliability
+    - demo-d50-backlog
+    - demo-d46-producer-consumer
+    - demo-d45-architecture
+
+  Topic demo-d45-architecture 已存在
+  Topic 详情：
+    名称: demo-d45-architecture
+    分区数: 3
+    Partition-0 Leader=0 Replicas=[localhost:9092 (id: 0 rack: null)] ISR=[localhost:9092 (id: 0 rack: null)]
+    Partition-1 Leader=0 Replicas=[localhost:9092 (id: 0 rack: null)] ISR=[localhost:9092 (id: 0 rack: null)]
+    Partition-2 Leader=0 Replicas=[localhost:9092 (id: 0 rack: null)] ISR=[localhost:9092 (id: 0 rack: null)]
+
+=== 四、消费组（Consumer Group）===
+
+  ┌────────────────────────────────────────────────────────────┐
+  │ Topic: order-topic (3 partitions)                          │
+  │                                                            │
+  │ Consumer Group A (3 consumers):                            │
+  │   Consumer-A0 ← Partition-0  (竞争消费)                   │
+  │   Consumer-A1 ← Partition-1                                │
+  │   Consumer-A2 ← Partition-2                                │
+  │                                                            │
+  │ Consumer Group B (2 consumers):                            │
+  │   Consumer-B0 ← Partition-0, Partition-1  (一个消费多个)   │
+  │   Consumer-B1 ← Partition-2                                │
+  └────────────────────────────────────────────────────────────┘
+
+  规则：
+    1. 同一 Group 内：一个 Partition 只能被一个 Consumer 消费
+    2. 不同 Group 间：每个 Group 独立消费全部消息（广播）
+    3. Consumer 数 > Partition 数 → 多余 Consumer 空闲
+    4. Consumer 数 < Partition 数 → 一个 Consumer 消费多个 Partition
+
+  ★ 面试：Consumer 数量最多等于 Partition 数量，再多没用
+
+=== 五、消息队列对比 ===
+
+  ┌──────────────┬──────────────────┬──────────────────┬──────────────────┐
+  │              │ Kafka ★         │ RocketMQ         │ RabbitMQ         │
+  ├──────────────┼──────────────────┼──────────────────┼──────────────────┤
+  │ 吞吐量       │ 百万级/s         │ 十万级/s         │ 万级/s           │
+  │ 延迟         │ ms 级            │ ms 级            │ us 级            │
+  │ 可靠性       │ 高（副本机制）   │ 高（同步刷盘）   │ 高（镜像队列）   │
+  │ 顺序消息     │ Partition 内有序 │ Queue 内有序     │ Queue 内有序     │
+  │ 事务消息     │ ✓ (0.11+)       │ ✓ (原生支持)    │ ✗               │
+  │ 延迟消息     │ ✗               │ ✓ (18个级别)    │ ✓ (TTL+DLX)     │
+  │ 消息回溯     │ ✓ (按 offset)   │ ✓ (按时间)      │ ✗               │
+  │ 适用场景     │ 大数据/日志/流   │ 电商/金融        │ 企业集成         │
+  └──────────────┴──────────────────┴──────────────────┴──────────────────┘
+
+  ★ 面试必背：
+    Q: 为什么 Kafka 吞吐量高？
+    A: 1) 顺序写磁盘（比随机写快 1000 倍）
+       2) Page Cache（利用 OS 缓存）
+       3) 零拷贝（sendfile 系统调用）
+       4) 批量发送 + 压缩
+       5) 分区并行
+

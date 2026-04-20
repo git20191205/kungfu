@@ -1,0 +1,51 @@
+MessageReliabilityDemo 日志分析
+
+运行环境：JDK 1.8.0_441, Windows 11, Kafka 3.5.1 (localhost:9092)
+
+整体结果：acks=all 可靠发送成功，5 条消息全部收到 Broker 确认。手动提交 offset 成功。
+
+重点观察 1 — acks=all 确认：
+
+  日志原文：
+    ✓ 消息已确认: partition=0 offset=15
+    ✓ 消息已确认: partition=0 offset=16
+    ✓ 消息已确认: partition=0 offset=17
+    ✓ 消息已确认: partition=0 offset=18
+    ✓ 消息已确认: partition=0 offset=19
+
+  分析：
+    - acks=all 意味着所有 ISR 副本都确认写入后才返回
+    - 当前单节点 ISR=[Broker-0]，所以只需 Broker-0 确认
+    - 生产环境 ISR=[0,1,2] + min.insync.replicas=2 → 至少 2 个副本确认
+    - 同步发送（producer.send().get()）阻塞等待确认 → 最可靠但最慢
+
+重点观察 2 — 手动提交 offset：
+
+  日志原文：
+    拉取到 5 条消息
+    处理: reliable_msg_0 ... reliable_msg_4
+    ✓ 手动提交 offset 成功
+
+  分析：
+    手动提交流程：
+    1. poll() 拉取消息
+    2. 逐条处理业务逻辑
+    3. 全部处理成功后 commitSync()
+    4. 如果处理中途失败 → 不提交 → 下次重新消费
+
+    对比自动提交：
+    - 自动提交每 5s 提交一次，不管消息是否处理完
+    - 如果处理到一半 Consumer 宕机 → offset 已提交 → 消息丢失
+
+重点观察 3 — 单节点下 acks=all 的局限：
+
+  当前环境 replication-factor=1，acks=all 等价于 acks=1
+  因为 ISR 只有 Leader 自己，"所有副本确认" = "Leader 确认"
+  → 单节点下 acks=all 不能防止数据丢失（Broker 宕机就丢了）
+  → 必须配合 replication-factor≥3 + min.insync.replicas≥2
+
+结论：
+  1. acks=all + 同步发送 = Producer 端最强可靠性保证
+  2. 手动提交 offset = Consumer 端防丢失（at-least-once）
+  3. 单节点下 acks=all 无实际意义，必须配合多副本
+  4. 生产配置：acks=all + min.insync.replicas=2 + RF=3 + 手动提交

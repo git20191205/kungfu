@@ -1,0 +1,45 @@
+KafkaArchitectureDemo 日志分析
+
+运行环境：JDK 1.8.0_441, Windows 11, Kafka 3.5.1 (localhost:9092)
+
+整体结果：成功连接真实 Kafka 集群，探索了集群拓扑、创建了 3 分区 Topic。
+
+重点观察 1 — 集群拓扑：
+
+  日志原文：
+    集群节点：0 → localhost:9092
+    Controller: 0
+    现有 Topic (5 个)
+
+  分析：
+    - 单节点集群（Broker-0），同时也是 Controller
+    - Controller 负责：分区 Leader 选举、Topic 创建/删除、副本管理
+    - 生产环境至少 3 个 Broker（高可用）
+
+重点观察 2 — 分区和副本分布：
+
+  日志原文：
+    分区数: 3
+    Partition-0 Leader=0 Replicas=[0] ISR=[0]
+    Partition-1 Leader=0 Replicas=[0] ISR=[0]
+    Partition-2 Leader=0 Replicas=[0] ISR=[0]
+
+  分析：
+    - 3 个分区的 Leader 都在 Broker-0（因为只有 1 个 Broker）
+    - Replicas 和 ISR 都只有 Broker-0（replication-factor=1）
+    - 生产环境应设 replication-factor=3，Leader 分散在不同 Broker
+
+重点观察 3 — Topic 已存在处理：
+
+  日志原文：Topic demo-d45-architecture 已存在
+
+  分析：
+    - 第二次运行时 Topic 已创建，AdminClient 抛出 TopicExistsException
+    - Demo 正确捕获并提示，不影响后续操作
+    - 生产中创建 Topic 应该用 kafka-topics.sh 或 Terraform 管理
+
+结论：
+  1. 单节点 Kafka 可用于开发测试，但无高可用保障
+  2. 3 分区 = 最大并行消费数为 3
+  3. replication-factor=1 意味着 Broker 宕机数据丢失
+  4. 生产建议：3 Broker + 3 分区 + replication-factor=3

@@ -1,0 +1,74 @@
+========================================
+  Kafka 生产者消费者
+========================================
+
+=== 一、Producer 核心配置 ===
+
+  ┌──────────────────────────┬──────────────────────────────────────┐
+  │ 配置项                   │ 说明                                  │
+  ├──────────────────────────┼──────────────────────────────────────┤
+  │ bootstrap.servers        │ Kafka 集群地址                        │
+  │ key.serializer           │ Key 序列化器                          │
+  │ value.serializer         │ Value 序列化器                        │
+  │ acks                     │ 0/1/all 确认级别                      │
+  │ retries                  │ 发送失败重试次数                      │
+  │ batch.size               │ 批量发送大小（默认 16KB）             │
+  │ linger.ms                │ 等待凑批时间（默认 0）                │
+  │ buffer.memory            │ 发送缓冲区大小（默认 32MB）           │
+  └──────────────────────────┴──────────────────────────────────────┘
+
+=== 二、发送消息 ===
+
+
+    ✓ 发送成功: partition=0 offset=30 key=order_0
+    ✓ 发送成功: partition=0 offset=31 key=order_1
+    ✓ 发送成功: partition=0 offset=32 key=order_2
+    ✓ 发送成功: partition=0 offset=33 key=order_0
+    ✓ 发送成功: partition=0 offset=34 key=order_1
+    ✓ 发送成功: partition=0 offset=35 key=order_2
+    ✓ 发送成功: partition=0 offset=36 key=order_0
+    ✓ 发送成功: partition=0 offset=37 key=order_1
+    ✓ 发送成功: partition=0 offset=38 key=order_2
+    ✓ 发送成功: partition=0 offset=39 key=order_0
+
+  ★ 观察：相同 key 的消息进入相同 partition（保证局部有序）
+
+=== 三、Consumer 核心配置 ===
+
+  ┌──────────────────────────┬──────────────────────────────────────┐
+  │ 配置项                   │ 说明                                  │
+  ├──────────────────────────┼──────────────────────────────────────┤
+  │ group.id                 │ 消费组 ID（同组竞争消费）             │
+  │ auto.offset.reset        │ earliest/latest（无 offset 时从哪开始）│
+  │ enable.auto.commit       │ 是否自动提交 offset（默认 true）      │
+  │ auto.commit.interval.ms  │ 自动提交间隔（默认 5000ms）           │
+  │ max.poll.records          │ 单次 poll 最大消息数（默认 500）      │
+  │ session.timeout.ms       │ 心跳超时（默认 45s）                  │
+  └──────────────────────────┴──────────────────────────────────────┘
+
+=== 四、消费消息 ===
+
+
+  订阅 Topic: demo-d46-producer-consumer
+  消费组: demo-d46-group
+
+    partition=0 offset=30 key=order_0 value={"orderId":"order_0","item":"product_0","amount":100}
+    partition=0 offset=31 key=order_1 value={"orderId":"order_1","item":"product_1","amount":110}
+    partition=0 offset=32 key=order_2 value={"orderId":"order_2","item":"product_2","amount":120}
+    partition=0 offset=33 key=order_0 value={"orderId":"order_0","item":"product_3","amount":130}
+    partition=0 offset=34 key=order_1 value={"orderId":"order_1","item":"product_4","amount":140}
+    partition=0 offset=35 key=order_2 value={"orderId":"order_2","item":"product_5","amount":150}
+    partition=0 offset=36 key=order_0 value={"orderId":"order_0","item":"product_6","amount":160}
+    partition=0 offset=37 key=order_1 value={"orderId":"order_1","item":"product_7","amount":170}
+    partition=0 offset=38 key=order_2 value={"orderId":"order_2","item":"product_8","amount":180}
+    partition=0 offset=39 key=order_0 value={"orderId":"order_0","item":"product_9","amount":190}
+
+  共消费 10 条消息
+
+  ★ 面试必背：
+    Q: Kafka 消费者 poll 模型 vs 推模型？
+    A: Kafka 用 pull（消费者主动拉取），好处：
+       1) 消费者控制消费速率，不会被压垮
+       2) 可以批量拉取，提高吞吐
+       3) 消费者可以回溯消费（重置 offset）
+

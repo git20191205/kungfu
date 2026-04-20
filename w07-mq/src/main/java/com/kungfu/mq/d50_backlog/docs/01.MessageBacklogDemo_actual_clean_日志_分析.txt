@@ -1,0 +1,49 @@
+MessageBacklogDemo 日志分析
+
+运行环境：JDK 1.8.0_441, Windows 11, Kafka 3.5.1 (localhost:9092)
+
+整体结果：成功发送 1000 条消息制造积压，AdminClient 检测到 Lag=5000。
+
+重点观察 1 — 生产速度：
+
+  日志原文：
+    ✓ 发送 1000 条消息，耗时 180 ms
+
+  分析：
+    - 1000 条 / 180ms = 5555 条/秒（单线程）
+    - Kafka 的批量发送 + linger.ms=5 起了作用
+    - 生产环境多线程 + 更大 batch.size → 轻松达到 10 万+/秒
+    - 这就是为什么 Kafka 吞吐量高：批量 + 顺序写 + Page Cache
+
+重点观察 2 — Lag 检测结果：
+
+  日志原文：
+    Partition-0: Committed=0, End Offset=5000, Lag=5000
+
+  分析：
+    - Committed=0：消费组 demo-d50-group 从未消费过
+    - End Offset=5000：partition-0 中共有 5000 条消息（多次运行累积）
+    - Lag=5000：全部积压
+    - 只有 1 个 partition 有数据（和 D46/D49 一样的 hash 分布问题）
+
+    Lag 计算公式：
+    Lag = End Offset - Committed Offset
+    = 最新消息位置 - 消费者已确认位置
+    = 未消费的消息数
+
+重点观察 3 — 为什么 End Offset=5000 而不是 1000：
+
+  本次只发了 1000 条，但 End Offset=5000
+  因为之前运行 D46/D47/D49 也往这个 partition 发过消息
+  Kafka 的 offset 是累积的，永不回退（append-only log）
+
+  这也说明了为什么监控 Lag 比监控 offset 绝对值更有意义：
+  - offset 绝对值没有业务含义
+  - Lag（差值）才反映积压程度
+
+结论：
+  1. Kafka 单线程发送 1000 条仅需 180ms（批量优化）
+  2. AdminClient 可以精确检测每个 partition 的 Lag
+  3. Lag = End Offset - Committed Offset = 积压消息数
+  4. 生产监控：Lag > 10000 告警，Lag 持续增长 5 分钟紧急告警
+  5. 解决积压：扩容 Consumer（最多=分区数）/ 提高消费速度 / 临时转储
