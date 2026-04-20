@@ -1,0 +1,57 @@
+========================================
+  RedisDataStructureDemo 日志分析
+========================================
+
+整体结果：
+  5 种核心数据结构全部演示成功，每种都包含真实场景和实际命令输出
+  String(缓存/锁/计数) → List(队列/时间线) → Hash(对象) → Set(交集/抽奖) → ZSet(排行榜/延迟队列)
+  最终清理了 11 个 demo key
+
+逐步分析表：
+┌────────┬──────────────────────┬──────────────────────────────────────┐
+│ 结构   │ 演示场景             │ 关键命令与结果                       │
+├────────┼──────────────────────┼──────────────────────────────────────┤
+│ String │ 缓存/分布式锁/计数器 │ SETNX→1(成功)/0(失败), INCR→1~5     │
+│ List   │ 消息队列/最新N条     │ LPUSH 3条→RPOP 按FIFO消费           │
+│ Hash   │ 用户对象字段级读写   │ HSET 3字段, HINCRBY age→29          │
+│ Set    │ 共同好友/抽奖/标签   │ SINTER→[Tom,Lucy], SRANDMEMBER 3人  │
+│ ZSet   │ 排行榜/延迟队列      │ ZREVRANGE Top3, ZRANGEBYSCORE 到期  │
+└────────┴──────────────────────┴──────────────────────────────────────┘
+
+重点观察 1 — String: SETNX 分布式锁的互斥性
+  SETNX lock thread-A → 1（加锁成功）
+  SETNX lock thread-B → 0（加锁失败，key 已存在）
+  ★ 这是 Redis 分布式锁的基础，生产中用 SET key value NX EX timeout
+  ★ 面试追问：SETNX 的问题是锁不可重入，Redisson 用 Hash 结构实现可重入锁
+
+重点观察 2 — List: LPUSH+RPOP 实现 FIFO 队列
+  LPUSH msg1 msg2 msg3 → 列表: [msg3, msg2, msg1]
+  RPOP → msg1 → msg2 → msg3（先进先出）
+  ★ LTRIM 0 2 只保留最新 3 条，防止列表无限膨胀
+  ★ 生产级消息队列建议用 Stream（支持消费组、ACK、持久化）
+
+重点观察 3 — Hash vs String+JSON 的选型
+  HSET user name Alice age 28 city Beijing
+  HINCRBY age 1 → 29（原子操作，不需要读-改-写）
+  ★ 频繁改单字段 → Hash（避免 JSON 反序列化开销）
+  ★ 整体读写为主 → String+JSON（一次搞定）
+  ★ 购物车场景：HSET cart:{userId} {productId} {quantity}
+
+重点观察 4 — Set: SINTER 交集运算
+  friends:alice = [Mike, Tom, Lucy, Jerry]
+  friends:bob   = [Tom, Rose, Lucy, Jack]
+  SINTER → [Tom, Lucy]（共同好友）
+  ★ Set 天然去重：SADD 4 个含重复 Java → SCARD=3
+  ★ SRANDMEMBER 3 → 随机抽 3 人（不移除），SPOP 抽完即删
+
+重点观察 5 — ZSet: 排行榜 + 延迟队列双场景
+  排行榜: ZREVRANGE Top3 → David(4500) > Bob(3200) > Carol(2100)
+  ZINCRBY Alice 1000 → 2500（实时更新分数）
+  延迟队列: score=时间戳，ZRANGEBYSCORE 0 now → 取到期任务
+  ★ ZSet 底层: 元素<128 用 listpack，否则 skiplist+hashtable
+  ★ 面试追问"为什么用跳表不用红黑树"：跳表实现简单、范围查询更快
+
+结论：
+  5 种结构的选型口诀：需要排序→ZSet，需要交并差→Set，
+  按字段存对象→Hash，需要顺序/队列→List，其他→String
+  面试时每种结构说一个典型场景 + 核心命令即可

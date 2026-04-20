@@ -1,0 +1,81 @@
+RedissonWatchDogDemo 日志分析
+
+运行环境：JDK 1.8.0_441, Windows 11, Redis localhost:6379, Redisson 3.23.5
+
+整体结果：Redisson 看门狗、可重入锁、tryLock、并发库存扣减全部演示成功。
+
+重点观察 1 — 看门狗自动续期：
+
+  日志原文：
+    lock() 成功 → 看门狗已启动
+    Redis 中: demo:d34:basic → Hash{uuid:threadId = 1}, TTL=30s
+    unlock() 成功 → 看门狗已停止
+
+  分析：
+    - lock() 不传 leaseTime → 默认 30s + 启动看门狗
+    - 看门狗每 10s（30/3）续期一次，重置 TTL 为 30s
+    - 只要业务还在执行，锁就不会过期
+    - unlock() 时取消看门狗定时任务
+    - JVM 宕机 → 看门狗停止 → 30s 后锁自动过期（防死锁）
+
+    ★ 关键区别：
+    lock()           → 启动看门狗，锁不会过期
+    lock(10, SECONDS) → 不启动看门狗，10s 后自动过期
+
+重点观察 2 — 可重入锁的 Hash 结构：
+
+  日志原文：
+    第一次 lock() → 重入计数 = 1
+    第二次 lock() → 重入计数 = 2
+    第一次 unlock() → 重入计数 = 1（锁未释放）
+    第二次 unlock() → 重入计数 = 0 → 锁释放
+
+  分析：
+    Redis 中的数据结构：
+    HSET demo:d34:reentrant "uuid:threadId" 1   (第一次加锁)
+    HINCRBY demo:d34:reentrant "uuid:threadId" 1 (重入，计数变2)
+    HINCRBY demo:d34:reentrant "uuid:threadId" -1 (解锁，计数变1)
+    HINCRBY demo:d34:reentrant "uuid:threadId" -1 (解锁，计数变0 → DEL key)
+
+    为什么用 Hash 而不是 String？
+    - String 只能存一个值，无法记录重入次数
+    - Hash 的 field = uuid:threadId，value = 重入次数
+    - 同一线程多次 lock() 只是递增计数，不会死锁
+
+重点观察 3 — tryLock 超时等待：
+
+  日志原文：
+    线程 A 持有锁
+    线程 B tryLock(waitTime=2s)...
+    线程 A 释放锁
+    线程 B: ✓ 获取成功（A 已释放）
+
+  分析：
+    - tryLock(2, 10, SECONDS) = 最多等 2s，获取后持有 10s
+    - A 在 1s 后释放 → B 在等待期间收到通知 → 立即获取
+    - 如果 A 2s 内不释放 → B 返回 false（获取失败）
+    - 底层用 Redis Pub/Sub 通知等待者（不是轮询）
+
+重点观察 4 — 并发库存扣减：
+
+  日志原文：
+    初始库存: 100
+    并发请求: 200
+    成功扣减: 100
+    最终库存: 0
+    → ✓ 精确扣减，无超卖
+
+  分析：
+    - 对比 D33 手写锁：效果相同（都是精确扣减）
+    - Redisson 优势：
+      1. 自动续期（不怕业务执行慢）
+      2. 可重入（不怕嵌套调用死锁）
+      3. 公平锁可选（按请求顺序获取）
+      4. 代码更简洁（lock/unlock 即可）
+
+结论：
+  1. Redisson 是生产环境分布式锁的首选方案
+  2. 看门狗解决了「锁过期但业务未完成」的核心问题
+  3. Hash 结构实现可重入，避免同一线程死锁
+  4. tryLock 用 Pub/Sub 通知，不是轮询，性能好
+  5. 生产建议：直接用 Redisson，不要手写 Redis 锁

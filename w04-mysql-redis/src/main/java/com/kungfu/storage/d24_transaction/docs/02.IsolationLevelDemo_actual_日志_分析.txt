@@ -1,0 +1,65 @@
+========================================
+  IsolationLevelDemo 日志分析
+========================================
+
+整体结果：
+  4 种隔离级别逐一实战验证，每种都通过双连接并发操作触发对应问题
+  READ UNCOMMITTED 触发脏读，READ COMMITTED 触发不可重复读
+  REPEATABLE READ 防止幻读，SERIALIZABLE 阻塞写操作 1013ms
+
+逐步分析表：
+┌────────────────────┬──────────────────┬──────────────────┬──────────┐
+│ 隔离级别           │ 观测到的现象     │ 关键数据         │ 符合预期 │
+├────────────────────┼──────────────────┼──────────────────┼──────────┤
+│ READ UNCOMMITTED   │ 脏读             │ 读到未提交的9999 │ ✓        │
+│ READ COMMITTED     │ 不可重复读       │ 1000→2000        │ ✓        │
+│ REPEATABLE READ    │ 幻读被防止       │ 2行→2行不变      │ ✓        │
+│ SERIALIZABLE       │ 写被阻塞         │ 等待 1013ms      │ ✓        │
+└────────────────────┴──────────────────┴──────────────────┴──────────┘
+
+重点观察 1 — READ UNCOMMITTED: 脏读
+  conn1: UPDATE balance→9999（未提交）
+  conn2: SELECT → 读到 9999 ★ 脏读发生
+  conn1: ROLLBACK → 数据回滚到 1000
+  conn2: 再次读 → 1000
+  ★ conn2 读到的 9999 从未真正生效，这就是"脏数据"
+  ★ 生产环境绝对禁用此级别
+
+重点观察 2 — READ COMMITTED: 不可重复读
+  conn2 事务内：第一次读 balance=1000
+  conn1: UPDATE→2000 并 COMMIT
+  conn2 事务内：第二次读 balance=2000
+  ★ 同一事务内两次读到不同值 → 不可重复读
+  ★ 原因：RC 每次 SELECT 创建新 ReadView，能看到最新提交
+  ★ 阿里规范推荐 RC，因为减少 Gap Lock 死锁风险
+
+重点观察 3 — REPEATABLE READ: 幻读防护
+  conn2 第一次: SELECT * → 2 行，Alice balance=2000
+  conn1: INSERT Charlie(500) + UPDATE Alice→5000 + COMMIT
+  conn2 第二次: SELECT * → 仍然 2 行，Alice balance=2000
+  ★ 行数 2→2（没看到 Charlie）→ 幻读被防止
+  ★ 值 2000→2000（没看到 UPDATE）→ 可重复读
+  ★ InnoDB 的 RR 通过 MVCC + Gap Lock 实现，比 SQL 标准更强
+
+重点观察 4 — SERIALIZABLE: 读写互斥
+  conn1: SELECT（自动加 S 锁）
+  conn2: UPDATE → 被阻塞 1013ms
+  conn1: COMMIT（释放 S 锁）→ conn2 UPDATE 成功
+  ★ 1013ms 就是 conn2 等待 S 锁释放的时间
+  ★ 所有 SELECT 自动加 LOCK IN SHARE MODE
+  ★ 完全串行化，并发性能最低，生产几乎不用
+
+重点观察 5 — 实现方式对比
+  ┌────────────────────┬────────────────────────────────┐
+  │ 隔离级别           │ InnoDB 实现方式                │
+  ├────────────────────┼────────────────────────────────┤
+  │ READ UNCOMMITTED   │ 无 MVCC，直接读最新版本        │
+  │ READ COMMITTED     │ 每次 SELECT 新建 ReadView      │
+  │ REPEATABLE READ    │ 复用第一次 SELECT 的 ReadView  │
+  │ SERIALIZABLE       │ 读写都加锁，完全串行           │
+  └────────────────────┴────────────────────────────────┘
+
+结论：
+  InnoDB 默认 RR，大多数业务够用；互联网业务常用 RC（阿里规范）
+  面试回答隔离级别时，不仅要说"防什么"，更要说"怎么实现的"（MVCC/锁）
+  注意日志中出现的"重置数据失败: No database selected"不影响核心演示结果

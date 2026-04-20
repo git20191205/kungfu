@@ -1,0 +1,83 @@
+SeataATDemo 日志分析
+
+运行环境：JDK 1.8.0_441, Windows 11, MySQL localhost:3306
+注意：本 Demo 用纯 JDBC 模拟 Seata AT 模式原理，不需要真实 Seata Server
+
+整体结果：成功模拟 AT 模式的一阶段提交 + 二阶段回滚，数据从 100→90→100 完整恢复。
+
+重点观察 1 — 一阶段的 undo_log 记录：
+
+  日志原文：
+    1. Before Image: {"id":1, "product_name":"iPhone", "quantity":100}
+    2. 执行 SQL: quantity 100 → 90
+    3. After Image: {"id":1, "product_name":"iPhone", "quantity":90}
+    4. 写入 undo_log
+    5. COMMIT（业务数据 + undo_log 一起提交）
+
+  分析：
+    AT 模式一阶段做了 5 件事（全部在本地事务中）：
+    1. 解析业务 SQL → 知道要改哪张表的哪一行
+    2. SELECT before image → 记录修改前的数据快照
+    3. 执行业务 SQL → 数据实际变更
+    4. SELECT after image → 记录修改后的数据快照
+    5. INSERT undo_log → 保存 before/after image
+
+    关键：业务数据变更 + undo_log 在同一个本地事务中提交
+    → 要么都成功，要么都失败
+    → 一阶段结束后，本地事务已提交，锁已释放
+
+    这就是 AT 模式的核心优势：
+    - 一阶段就提交了本地事务 → 不长时间持有数据库锁
+    - 对比 XA/2PC：一阶段只 prepare 不 commit → 长时间持锁
+
+重点观察 2 — 二阶段回滚的数据恢复：
+
+  日志原文：
+    1. 读取 undo_log: before_image quantity=100, after_image quantity=90
+    2. 校验当前数据: quantity=90 == after_image.quantity=90 → ✓ 一致
+    3. 生成反向 SQL: UPDATE t_stock_d36 SET quantity=100 WHERE id=1
+    4. 标记 undo_log 为 ROLLBACKED
+    5. COMMIT → 数据已恢复！
+    验证: quantity = 100 (恢复到 100) ✓
+
+  分析：
+    二阶段回滚的关键步骤：
+
+    Step 2 的「校验 after image」非常重要：
+    - 如果当前数据 ≠ after_image → 说明有其他事务修改了这行数据（脏写）
+    - 这种情况下不能直接回滚，需要人工介入
+    - 这就是 AT 模式的局限：依赖全局锁防止脏写
+
+    Step 3 的「反向 SQL」：
+    - before_image 记录了修改前的值
+    - 用 before_image 生成 UPDATE 语句 → 数据恢复到修改前
+    - 这就是 undo_log 的作用：提供回滚能力
+
+重点观察 3 — AT 模式 vs 其他方案：
+
+  ┌──────────┬──────────────────┬──────────────────┬──────────────────┐
+  │ 方案     │ 一阶段           │ 二阶段           │ 锁持有时间       │
+  ├──────────┼──────────────────┼──────────────────┼──────────────────┤
+  │ XA/2PC   │ prepare（不提交）│ commit/rollback  │ 长（整个事务）   │
+  │ AT ★    │ commit + undo_log│ 删undo/反向SQL   │ 短（一阶段即释放）│
+  │ TCC      │ try（预留资源）  │ confirm/cancel   │ 无（业务层面）   │
+  │ Saga     │ 正向操作         │ 补偿操作         │ 无               │
+  └──────────┴──────────────────┴──────────────────┴──────────────────┘
+
+  AT 模式的优缺点：
+  优点：
+  - 对业务无侵入（不需要写 try/confirm/cancel）
+  - 一阶段即提交，锁持有时间短
+  - 框架自动生成 undo_log
+
+  缺点：
+  - 需要全局锁防脏写 → 影响并发
+  - 只支持关系型数据库（需要 undo_log 表）
+  - 不适合长事务（全局锁持有时间 = 整个分布式事务时间）
+
+结论：
+  1. AT 模式核心 = 一阶段提交本地事务 + undo_log 提供回滚能力
+  2. before/after image 是回滚的基础，after image 校验防脏写
+  3. 对比 XA：AT 一阶段就释放锁，性能更好
+  4. 对比 TCC：AT 无业务侵入，但需要全局锁
+  5. 生产建议：简单跨库事务用 AT，高性能场景用 TCC

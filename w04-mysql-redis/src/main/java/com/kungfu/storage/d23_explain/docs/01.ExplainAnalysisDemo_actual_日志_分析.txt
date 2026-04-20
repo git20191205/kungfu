@@ -1,0 +1,50 @@
+========================================
+  ExplainAnalysisDemo 日志分析
+========================================
+
+整体结果：
+  50000 行数据插入耗时 1342ms，EXPLAIN 演示了 5 种 type 级别
+  从 const(1行) → ref(50行) → range(2050行) → index(50000行) → ALL(50000行)
+  清晰展示了访问类型与扫描行数的递增关系
+
+逐步分析表：
+┌──────────┬──────────┬────────────┬──────────────────┬──────────────────────┐
+│ type     │ rows     │ key        │ Extra            │ 场景                 │
+├──────────┼──────────┼────────────┼──────────────────┼──────────────────────┤
+│ const    │ 1        │ PRIMARY    │ NULL             │ WHERE id=1           │
+│ ref      │ 50       │ idx_user_id│ NULL             │ WHERE user_id=42     │
+│ range    │ 2050     │ idx_user_id│ Using index cond │ BETWEEN 10 AND 50    │
+│ index    │ 50000    │ idx_user_id│ Using index      │ SELECT user_id       │
+│ ALL      │ 50000    │ NULL       │ Using where      │ WHERE amount>100     │
+└──────────┴──────────┴────────────┴──────────────────┴──────────────────────┘
+
+重点观察 1 — type 与 rows 的递增关系
+  const:  rows=1     → 主键精确匹配，最多 1 行，最优
+  ref:    rows=50    → 非唯一索引等值，user_id=42 约 50 行
+  range:  rows=2050  → 索引范围扫描，BETWEEN 10 AND 50 覆盖约 41 个 user_id
+  index:  rows=50000 → 全索引扫描，遍历整棵索引树但不回表
+  ALL:    rows=50000 → 全表扫描，逐行读数据页，最差
+  ★ 从 const 到 ALL，扫描行数从 1 增长到 50000，性能差 5 万倍
+
+重点观察 2 — Extra 字段的信息量
+  Using index:          覆盖索引，不回表（index 类型时出现）
+  Using index condition: 索引下推 ICP，存储引擎层用索引过滤（range 时出现）
+  Using where:          Server 层二次过滤（ALL 时出现，说明存储引擎返回了多余行）
+  NULL:                 const/ref 时无额外操作，直接命中
+  ★ 看到 Using filesort 或 Using temporary 要立即警惕
+
+重点观察 3 — ref 字段的含义
+  const 和 ref 类型中 ref=const → 与常量值比较
+  range 类型中 ref=NULL → 范围扫描没有固定比较值
+  ★ 如果 ref 显示列名（如 db.t1.id），说明是 JOIN 关联查询
+
+重点观察 4 — filtered 字段
+  const: 100.0%  → 精确匹配，无浪费
+  ref:   100.0%  → 索引返回的行全部满足条件
+  ALL:   33.33%  → 扫描 50000 行但只有 1/3 满足 amount>100
+  ★ filtered 越低说明"无效扫描"越多，优化空间越大
+
+结论：
+  EXPLAIN 的 type 字段是性能判断的第一指标，优化目标至少达到 range
+  面试标准回答：system > const > eq_ref > ref > range > index > ALL
+  实际优化时重点关注 type + rows + Extra 三个字段的组合

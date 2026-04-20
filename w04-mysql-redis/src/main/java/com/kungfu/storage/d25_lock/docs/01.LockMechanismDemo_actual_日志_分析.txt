@@ -1,0 +1,54 @@
+========================================
+  LockMechanismDemo 日志分析
+========================================
+
+整体结果：
+  演示了 InnoDB 6 种锁类型的理论总览，准备了 5 行测试数据（id=1,2,3,5,10）
+  Demo1（Record Lock）因"No database selected"未能执行实际阻塞测试
+  但锁类型总览表和面试速记提供了完整的理论框架
+
+逐步分析表：
+┌──────────────────┬──────────────────────────────┬──────────────────────┐
+│ 锁类型           │ 锁住什么                     │ 触发场景             │
+├──────────────────┼──────────────────────────────┼──────────────────────┤
+│ Record Lock      │ 索引上的一条记录             │ WHERE id=1 FOR UPDATE│
+│ Gap Lock         │ 索引记录之间的间隙           │ 范围查询/唯一键不存在│
+│ Next-Key Lock ★ │ Record + Gap（左开右闭）     │ RR 级别范围查询默认  │
+│ Insert Intention │ 插入意向锁                   │ INSERT 时申请        │
+│ 表锁             │ 整张表                       │ 无索引更新           │
+│ 意向锁 IS/IX     │ 表级标记                     │ 自动加               │
+└──────────────────┴──────────────────────────────┴──────────────────────┘
+
+重点观察 1 — 测试数据的间隙设计
+  插入 ids = {1, 2, 3, 5, 10}，刻意留了间隙：
+    (3,5) 之间缺 id=4
+    (5,10) 之间缺 id=6,7,8,9
+  ★ 这些间隙正是 Gap Lock 的锁定范围
+  ★ 如果在 RR 级别执行 SELECT * WHERE id>3 FOR UPDATE
+    会锁住 (3,5],(5,10],(10,+∞) 三个 Next-Key Lock 区间
+
+重点观察 2 — Record Lock 预期行为（虽未成功执行）
+  设计场景：
+    [A] SELECT * WHERE id=1 FOR UPDATE → 对 id=1 加 X 锁
+    [B] UPDATE WHERE id=1 → 被阻塞（等待 A 释放 X 锁）
+  ★ Record Lock 只锁一条记录，不影响其他行
+  ★ 如��� WHERE 条件不走索引 → 退化为表锁（所有行都被锁）
+
+重点观察 3 — 三大核心原则
+  1. InnoDB 行锁加在「索引」上，不是数据行本身
+     → WHERE 不走索引 → 全表扫描 → 所有行加锁 → 退化为表锁
+  2. RR 级别默认用 Next-Key Lock 防幻读
+     → RC 级别只用 Record Lock，没有 Gap Lock
+  3. 普通 SELECT 不加锁（走 MVCC 快照读）
+     → 只有 SELECT FOR UPDATE / LOCK IN SHARE MODE 才加锁
+
+重点观察 4 — Gap Lock 的特殊性
+  Gap Lock 之间不互斥（两个事务可以同时持有同一间隙的 Gap Lock）
+  但 Gap Lock 会阻塞 INSERT（Insert Intention Lock 与 Gap Lock 冲突）
+  ★ 这是 RR 级别下并发 INSERT 容易死锁的根本原因
+  ★ 面试追问"为什么阿里推荐 RC"时，这就是答案之一
+
+结论：
+  InnoDB 锁机制的核心是"锁加在索引上"，理解这一点就能推导出大部分锁行为
+  Demo 因连接问题未完整执行，但理论框架完整
+  面试重点：Record Lock vs Gap Lock vs Next-Key Lock 的区别和触发条件
