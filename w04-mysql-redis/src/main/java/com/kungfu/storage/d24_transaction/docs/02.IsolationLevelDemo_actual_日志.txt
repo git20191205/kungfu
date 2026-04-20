@@ -1,0 +1,165 @@
+========================================
+  MySQL 4 种事务隔离级别实战
+========================================
+
+  ✓ MySQL 连接成功
+
+=== 准备测试数据 ===
+
+  ✓ 表 t_account 已创建
+    id=1, name='Alice', balance=1000
+    id=2, name='Bob',   balance=1000
+
+=== 4 种隔离级别总览 ===
+
+  ┌────────────────────┬──────────┬──────────────┬──────────┐
+  │ 隔离级别           │ 脏读     │ 不可重复读   │ 幻读     │
+  ├────────────────────┼──────────┼──────────────┼──────────┤
+  │ READ UNCOMMITTED   │ 可能 ✗   │ 可能 ✗       │ 可能 ✗   │
+  │ READ COMMITTED     │ 防止 ✓   │ 可能 ✗       │ 可能 ✗   │
+  │ REPEATABLE READ ★ │ 防止 ✓   │ 防止 ✓       │ 防止 ✓*  │
+  │ SERIALIZABLE       │ 防止 ✓   │ 防止 ✓       │ 防止 ✓   │
+  └────────────────────┴──────────┴──────────────┴──────────┘
+  ★ InnoDB 默认级别
+  * InnoDB 的 RR 通过 MVCC + 间隙锁解决幻读（SQL标准下 RR 不防止幻读）
+
+===========================================================
+  场景1: READ UNCOMMITTED — 脏读演示
+===========================================================
+
+  时间线：
+    conn1                            conn2
+    ─────                            ─────
+    BEGIN
+    UPDATE Alice balance → 9999
+    （未提交！）
+                                     BEGIN
+                                     SELECT → 能读到 9999？
+    ROLLBACK
+                                     SELECT → 回到 1000
+
+    [conn1] UPDATE t_account SET balance = 9999 WHERE name = 'Alice'
+    [conn1] 未提交！
+
+    [conn2] SELECT balance FROM t_account WHERE name = 'Alice'
+    [conn2] 读到 balance = 9999
+    ★ 脏读发生！conn2 读到了 conn1 未提交的 9999
+
+    [conn1] ROLLBACK — 数据回滚到 1000
+    [conn2] 再次读取 balance = 1000
+    → conn2 之前读到的 9999 是「脏数据」，实际从未真正生效！
+
+    ✗ 重置数据失败: No database selected
+===========================================================
+  场景2: READ COMMITTED — 不可重复读演示
+===========================================================
+
+  时间线：
+    conn1                            conn2
+    ─────                            ─────
+                                     BEGIN
+                                     SELECT → 1000（第一次读）
+    BEGIN
+    UPDATE Alice → 2000
+    COMMIT
+                                     SELECT → 2000（第二次读，值变了！）
+
+    [conn2] 第一次 SELECT
+    [conn2] balance = 1000
+
+    [conn1] UPDATE t_account SET balance = 2000 WHERE name = 'Alice'
+    [conn1] COMMIT
+
+    [conn2] 第二次 SELECT
+    [conn2] balance = 2000
+
+    ★ 不可重复读发生！同一事务内两次读到不同值
+      第一次: 1000 → 第二次: 2000
+      原因: RC 每次 SELECT 创建新 ReadView，能看到 conn1 的最新提交
+
+    ✗ 重置数据失败: No database selected
+===========================================================
+  场景3: REPEATABLE READ — 可重复读 + 幻读防护
+===========================================================
+
+  时间线：
+    conn1                            conn2
+    ─────                            ─────
+                                     BEGIN
+                                     SELECT → 2 rows（第一次读）
+    BEGIN
+    INSERT id=3 Charlie(500)
+    UPDATE Alice → 5000
+    COMMIT
+                                     SELECT → 还是 2 rows？值不变？
+
+    [conn2] 第一次 SELECT * FROM t_account
+    [conn2] 共 2 行，Alice balance = 2000
+
+    [conn1] INSERT INTO t_account VALUES (3, 'Charlie', 500)
+    [conn1] UPDATE t_account SET balance = 5000 WHERE name = 'Alice'
+    [conn1] COMMIT
+
+    [conn2] 第二次 SELECT * FROM t_account
+    [conn2] 共 2 行，Alice balance = 2000
+
+    ★ RR 结果分析：
+      行数: 2 → 2（没看到新插入的 Charlie → 幻读被防止 ✓）
+      Alice: 2000 → 2000（值不变 → 可重复读 ✓）
+      原因: RR 复用第一次 SELECT 的 ReadView，看不到 conn1 的提交
+
+    ✗ 重置数据失败: No database selected
+===========================================================
+  场景4: SERIALIZABLE — 串行化（读加锁）
+===========================================================
+
+  时间线：
+    conn1                            conn2
+    ─────                            ─────
+    BEGIN
+    SELECT（自动加共享锁 S）
+                                     BEGIN
+                                     UPDATE → 被阻塞！（等 S 锁释放）
+    COMMIT（释放 S 锁）
+                                     UPDATE 成功
+
+    [conn1] SELECT * FROM t_account WHERE name = 'Alice'
+    [conn1] 读到 balance = 5000
+    [conn1] （SERIALIZABLE 自动对读取的行加了 S 锁）
+
+    [conn2] UPDATE t_account SET balance = 8888 WHERE name = 'Alice'
+    [conn2] 预期：被 conn1 的共享锁阻塞...
+
+    ★ conn2 被阻塞了 1013 ms（等待 conn1 释放 S 锁）
+
+    [conn1] COMMIT（释放共享锁）
+    [conn2] UPDATE 完成（等待了约 1013 ms）
+
+    ★ SERIALIZABLE 特点：
+      - 所有 SELECT 自动加 LOCK IN SHARE MODE（共享锁）
+      - 其他事务的写操作必须等锁释放
+      - 完全防止脏读、不可重复读、幻读
+      - 代价：并发性能最低，容易死锁
+
+    ✗ 重置数据失败: No database selected
+========================================
+  面试速记
+========================================
+
+  ┌────────────────────┬──────────┬──────────────┬──────────┬────────────────┐
+  │ 隔离级别           │ 脏读     │ 不可重复读   │ 幻读     │ 实现方式       │
+  ├────────────────────┼──────────┼──────────────┼──────────┼────────────────┤
+  │ READ UNCOMMITTED   │ ✗        │ ✗            │ ✗        │ 无 MVCC        │
+  │ READ COMMITTED     │ ✓        │ ✗            │ ✗        │ 每次新 ReadView│
+  │ REPEATABLE READ ★ │ ✓        │ ✓            │ ✓*       │ 复用 ReadView  │
+  │ SERIALIZABLE       │ ✓        │ ✓            │ ✓        │ 读写都加锁     │
+  └────────────────────┴──────────┴──────────────┴──────────┴────────────────┘
+  ★ InnoDB 默认    * InnoDB 用 MVCC+间隙锁防止幻读
+
+  1. InnoDB 默认 REPEATABLE READ，大多数业务够用
+  2. 互联网业务常用 READ COMMITTED（阿里规范推荐），减少间隙锁死锁
+  3. SERIALIZABLE 性能最差，几乎不用于生产环境
+  4. READ UNCOMMITTED 无任何保护，生产环境禁用
+  5. 查看当前级别: SELECT @@transaction_isolation;
+
+  ✗ 清理失败: No database selected

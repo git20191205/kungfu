@@ -14,7 +14,7 @@ import java.sql.*;
 public class DBUtil {
 
     /** MySQL 连接地址（默认本地） */
-    private static final String URL = "jdbc:mysql://localhost:3306/kungfu"
+    private static final String URL = "jdbc:mysql://localhost:3306"
             + "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai"
             + "&characterEncoding=UTF-8&rewriteBatchedStatements=true";
 
@@ -22,7 +22,7 @@ public class DBUtil {
     private static final String USER = "root";
 
     /** 密码 */
-    private static final String PASS = "root";
+    private static final String PASS = "123456";
 
     static {
         try {

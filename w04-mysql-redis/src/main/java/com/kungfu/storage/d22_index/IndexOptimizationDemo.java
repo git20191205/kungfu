@@ -92,7 +92,7 @@ public class IndexOptimizationDemo {
         try (Statement stmt = conn.createStatement()) {
             StringBuilder sb = new StringBuilder("INSERT INTO t_order (order_no, user_id, product_id, amount, status) VALUES ");
             for (int i = 1; i <= 50000; i++) {
-                if (i > 1) sb.append(",");
+                if (i % 5000 != 1) sb.append(",");
                 sb.append(String.format("('ORD%06d', %d, %d, %.2f, %d)",
                         i, (i % 1000) + 1, (i % 500) + 1, 10 + (i % 990) * 0.1, i % 3));
                 if (i % 5000 == 0) {

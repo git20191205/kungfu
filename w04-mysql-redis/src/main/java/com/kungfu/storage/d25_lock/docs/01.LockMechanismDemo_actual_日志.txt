@@ -1,0 +1,63 @@
+========================================
+  InnoDB 锁机制全景演示
+========================================
+
+  ✓ MySQL 连接成功
+
+=== 一、InnoDB 锁类型总览 ===
+
+  ┌──────────────────┬──────────────────────────────┬──────────────────────────┐
+  │ 锁类型           │ 锁住什么                     │ 典型触发场景             │
+  ├──────────────────┼──────────────────────────────┼──────────────────────────┤
+  │ Record Lock      │ 索引上的一条记录             │ WHERE id=1 FOR UPDATE    │
+  │ Gap Lock         │ 索引记录之间的间隙（开区间） │ 范围查询 / 唯一键不存在  │
+  │ Next-Key Lock ★  │ Record + Gap（左开右闭）     │ RR 级别范围查询默认      │
+  │ Insert Intention │ 插入意向锁（特殊 Gap Lock）  │ INSERT 时申请            │
+  │ 表锁             │ 整张表                       │ LOCK TABLES / 无索引更新 │
+  │ 意向锁 IS/IX     │ 表级标记（与行锁配合）       │ 自动加，不用手动管       │
+  └──────────────────┴──────────────────────────────┴──────────────────────────┘
+
+  关键原则：
+    1. InnoDB 的行锁加在「索引」上，不是数据行本身
+    2. WHERE 不走索引 → 只能全表扫描 → 所有行都被加锁 → 退化为表锁
+    3. RR 级别默认用 Next-Key Lock 防幻读；RC 级别只用 Record Lock
+
+=== 二、准备测试数据 ===
+
+  建表 t_inventory(id, sku, quantity, version)
+  插入 5 行数据，ids = {1, 2, 3, 5, 10}（3~5 之间空 id=4，5~10 之间空 id=6,7,8,9）
+
+    id                  sku                 quantity            version             
+    1                   SKU-A               100                 0                   
+    2                   SKU-B               200                 0                   
+    3                   SKU-C               300                 0                   
+    5                   SKU-E               500                 0                   
+    10                  SKU-J               1000                0                   
+    (5 rows)
+
+=== 三、Demo 1: Record Lock（记录锁） ===
+
+  场景：事务 A 锁住 id=1 的行，事务 B 尝试更新同一行 → 阻塞
+  SQL：
+    [A] BEGIN; SELECT * FROM t_inventory WHERE id=1 FOR UPDATE;
+    [B] UPDATE t_inventory SET quantity=999 WHERE id=1;  ← 阻塞
+
+  ✗ 执行失败: No database selected
+java.sql.SQLException: No database selected
+	at com.mysql.cj.jdbc.exceptions.SQLError.createSQLException(SQLError.java:130)
+	at com.mysql.cj.jdbc.exceptions.SQLExceptionsMapping.translateException(SQLExceptionsMapping.java:122)
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeInternal(ClientPreparedStatement.java:916)
+	at com.mysql.cj.jdbc.ClientPreparedStatement.executeQuery(ClientPreparedStatement.java:972)
+	at com.kungfu.storage.d25_lock.LockMechanismDemo.demo1_RecordLock(LockMechanismDemo.java:153)
+	at com.kungfu.storage.d25_lock.LockMechanismDemo.main(LockMechanismDemo.java:61)
+========================================
+   面试速记
+========================================
+
+  1. Record Lock 锁一行；Gap Lock 锁间隙；Next-Key = Record + Gap
+  2. InnoDB 行锁加在「索引」上 → 不走索引就退化为表锁
+  3. Gap Lock 只在 RR 级别默认开启，用于防幻读
+  4. Gap Lock 彼此不互斥，但会阻塞 INSERT → 并发 INSERT 易死锁
+  5. SELECT ... FOR UPDATE 加 X 锁；SELECT ... LOCK IN SHARE MODE 加 S 锁
+  6. 普通 SELECT 不加锁（走 MVCC 快照）
+

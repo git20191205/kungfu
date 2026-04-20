@@ -1,0 +1,174 @@
+========================================
+  慢查询优化 3 大经典案例
+========================================
+
+  ✓ MySQL 连接成功
+
+=== 准备测试数据 ===
+
+  插入 50000 行，耗时 895 ms
+
+=== 索引失效常见场景总览 ===
+
+  ┌────┬─────────────────────────────┬──────────────────────────────────────┐
+  │ #  │ 失效场景                    │ 原因                                  │
+  ├────┼─────────────────────────────┼──────────────────────────────────────┤
+  │ 1  │ 对索引列使用函数            │ YEAR(create_time) 破坏了 B+Tree 有序性│
+  │ 2  │ 隐式类型转换                │ VARCHAR 列与 INT 比较，MySQL 自动转型  │
+  │ 3  │ 前导通配符 LIKE '%xx'       │ 无法利用索引的有序性定位起始位置       │
+  │ 4  │ OR 连接无索引列             │ 只要有一个条件没索引就走全扫           │
+  │ 5  │ 不满足最左前缀              │ 联合索引 (a,b,c)，查 WHERE b=1        │
+  │ 6  │ 使用 != 或 NOT IN           │ 优化器可能认为全扫更快                │
+  └────┴─────────────────────────────┴──────────────────────────────────────┘
+
+  ★ 下面用 EXPLAIN 逐一验证前 3 种最高频的场景
+
+========================================
+  案例1: 对索引列使用函数
+========================================
+
+  ✗ 问题 SQL：WHERE YEAR(create_time) = 2026
+
+    SQL: SELECT * FROM t_order WHERE YEAR(create_time) = 2026
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                ALL                 NULL                NULL                NULL                NULL                50000               100.0               Using where         
+    (1 rows)
+
+  问题分析：
+    - type = ALL → 全表扫描！
+    - key = NULL → 索引 idx_create_time 没有被使用
+    - 原因：对索引列套函数 YEAR() 后，B+Tree 的有序性被破坏
+    - MySQL 无法用索引定位 YEAR(create_time)=2026 的起始位置
+
+  -----------------------------------------------
+
+  ✓ 修复 SQL：改写为范围查询
+
+    SQL: SELECT * FROM t_order WHERE create_time >= '2026-01-01' AND create_time < '2027-01-01'
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                ALL                 idx_create_time     NULL                NULL                NULL                50000               50.0                Using where         
+    (1 rows)
+
+  修复分析：
+    - type = range → 索引范围扫描（从 ALL 优化到 range）
+    - key = idx_create_time → 索引被正确使用
+    - rows 大幅减少
+    - 原则：永远不要对索引列使用函数，把计算放到常量侧
+
+  ★ 类似场景：
+    ✗ WHERE DATE(create_time) = '2026-06-01'
+    ✓ WHERE create_time >= '2026-06-01' AND create_time < '2026-06-02'
+    ✗ WHERE MONTH(create_time) = 6
+    ✓ WHERE create_time >= '2026-06-01' AND create_time < '2026-07-01'
+
+========================================
+  案例2: 隐式类型转换
+========================================
+
+  ✗ 问题 SQL：WHERE order_no = 12345（order_no 是 VARCHAR，但传了 INT）
+
+    SQL: SELECT * FROM t_order WHERE order_no = 12345
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                ALL                 idx_order_no        NULL                NULL                NULL                50000               10.0                Using where         
+    (1 rows)
+
+  问题分析：
+    - type = ALL → 全表扫描！
+    - key = NULL → 索引 idx_order_no 没有被使用
+    - 原因：order_no 是 VARCHAR，但与 INT 比较
+    - MySQL 会对 order_no 做隐式转换：CAST(order_no AS SIGNED)
+    - 相当于对索引列使用了函数 → 索引失效（和案例1同理）
+
+  -----------------------------------------------
+
+  ✓ 修复 SQL：传入正确的字符串类型
+
+    SQL: SELECT * FROM t_order WHERE order_no = 'ORD012345'
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                ref                 idx_order_no        idx_order_no        130                 const               1                   100.0               NULL                
+    (1 rows)
+
+  修复分析：
+    - type = ref → 索引等值查找
+    - key = idx_order_no → 索引被正确使用
+    - rows = 1 → 只扫描 1 行
+    - 原则：参数类型必须和列类型一致，避免隐式转换
+
+  ★ 隐式转换规则：
+    - 字符串列 vs 数字 → MySQL 把字符串转为数字（对列做了转换 → 失效）
+    - 数字列 vs 字符串 → MySQL 把字符串转为数字（对常量做了转换 → 不失效）
+    - 记忆：谁被转换谁吃亏，列被转了索引就废了
+
+========================================
+  案例3: 前导通配符 LIKE
+========================================
+
+  ✗ 问题 SQL：WHERE order_no LIKE '%0123%'
+
+    SQL: SELECT * FROM t_order WHERE order_no LIKE '%0123%'
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                ALL                 NULL                NULL                NULL                NULL                50000               11.11               Using where         
+    (1 rows)
+
+  问题分析：
+    - type = ALL → 全表扫描！
+    - key = NULL → 索引 idx_order_no 没有被使用
+    - 原因：LIKE '%keyword%' 的前导 % 让 MySQL 无法确定起始位置
+    - 索引是按字典序排列的，'%0123%' 可以匹配任何开头 → 只能全扫
+
+  -----------------------------------------------
+
+  ✓ 改善方案1：去掉前导 %（如果业务允许）
+
+    SQL: SELECT * FROM t_order WHERE order_no LIKE 'ORD0123%'
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                range               idx_order_no        idx_order_no        130                 NULL                100                 100.0               Using index condition
+    (1 rows)
+
+  分析：
+    - type = range → 索引范围扫描
+    - key = idx_order_no → 索引生效
+    - 右边的 % 不影响索引使用，因为可以确定起始位置
+
+  -----------------------------------------------
+
+  ✓ 改善方案2：覆盖索引兜底（必须 LIKE '%xx%' 时）
+
+    SQL: SELECT order_no, user_id FROM t_order WHERE order_no LIKE '%0123%'
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                index               NULL                idx_orderno_userid  138                 NULL                50000               11.11               Using where; Using index
+    (1 rows)
+
+  分析：
+    - type = index → 全索引扫描（比 ALL 好）
+    - key = idx_orderno_userid → 使用覆盖索引
+    - Extra: Using where; Using index → 虽然全扫，但只扫索引不回表
+    - 索引页比数据页小得多，IO 开销大幅降低
+
+  ★ LIKE 优化总结：
+    1. 尽量使用右通配 LIKE 'prefix%' → 能走索引
+    2. 如果必须 LIKE '%keyword%'，用覆盖索引减少回表
+    3. 大数据量模糊搜索 → 考虑 Elasticsearch 全文检索
+
+========================================
+  面试速记
+========================================
+
+  1. 索引失效三大杀手：
+     - 对索引列用函数/计算 → 改写为范围查询
+     - 隐式类型转换 → 保证参数类型与列类型一致
+     - 前导通配符 LIKE '%xx' → 去掉前导% / 覆盖索引 / ES
+
+  2. 排查慢查询的标准流程：
+     Step 1: 开启慢查询日志（slow_query_log = ON, long_query_time = 1）
+     Step 2: 用 EXPLAIN 分析慢 SQL → 看 type / key / rows / Extra
+     Step 3: 根据 EXPLAIN 结果优化（加索引 / 改写SQL / 覆盖索引）
+     Step 4: 再次 EXPLAIN 验证优化效果
+
+  3. 口诀 — 索引失效速记：
+     函数计算索引废，类型不同隐式推
+     左模糊来右边飞，最左前缀不能违
+     OR 连接全得有，NOT IN 范围别乱追
+
+  ✓ 测试表已清理
+

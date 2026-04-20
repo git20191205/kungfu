@@ -99,7 +99,7 @@ public class SlowQueryOptimizationDemo {
             StringBuilder sb = new StringBuilder(
                 "INSERT INTO t_order (order_no, user_id, product_id, amount, status, create_time) VALUES ");
             for (int i = 1; i <= 50000; i++) {
-                if (i > 1) sb.append(",");
+                if (i % 5000 != 1) sb.append(",");
                 int dayOffset = i % 730;
                 sb.append(String.format(
                     "('ORD%06d', %d, %d, %.2f, %d, DATE_ADD('2025-01-01', INTERVAL %d DAY))",

@@ -83,9 +83,12 @@ public class CacheProblemDemo {
 
         System.out.println("    布隆过滤器加载了 1000 个有效 product_id");
 
-        int[] testIds = {42, 500, 1500, -1};
+        int[] testIds = {42, 500, 1500, 99999};
         for (int id : testIds) {
-            boolean maybeExists = bloom.get(id % 10000) && bloom.get((id * 31) % 10000) && bloom.get((id * 131) % 10000);
+            boolean maybeExists = id >= 0
+                    && bloom.get(Math.abs(id) % 10000)
+                    && bloom.get(Math.abs(id * 31) % 10000)
+                    && bloom.get(Math.abs(id * 131) % 10000);
             if (!maybeExists) {
                 System.out.println("    id=" + id + " → 布隆过滤器拦截，直接返回不存在（不查缓存，不查 DB）");
             } else {

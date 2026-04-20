@@ -75,6 +75,8 @@ public class IsolationLevelDemo {
 
     private static void prepareTable(Connection conn) throws Exception {
         System.out.println("=== 准备测试数据 ===\n");
+        DBUtil.execute(conn, "CREATE DATABASE IF NOT EXISTS kungfu");
+        DBUtil.execute(conn, "USE kungfu");
         DBUtil.execute(conn, "DROP TABLE IF EXISTS t_account");
         DBUtil.execute(conn,
                 "CREATE TABLE t_account (" +
@@ -158,6 +160,8 @@ public class IsolationLevelDemo {
         try {
             conn1 = DBUtil.getConnection(false);
             conn2 = DBUtil.getConnection(false);
+            DBUtil.execute(conn1, "USE kungfu");
+            DBUtil.execute(conn2, "USE kungfu");
 
             // 设置隔离级别
             setIsolationLevel(conn1, "READ UNCOMMITTED");
@@ -222,6 +226,8 @@ public class IsolationLevelDemo {
         try {
             conn1 = DBUtil.getConnection(false);
             conn2 = DBUtil.getConnection(false);
+            DBUtil.execute(conn1, "USE kungfu");
+            DBUtil.execute(conn2, "USE kungfu");
 
             setIsolationLevel(conn1, "READ COMMITTED");
             setIsolationLevel(conn2, "READ COMMITTED");
@@ -284,6 +290,8 @@ public class IsolationLevelDemo {
         try {
             conn1 = DBUtil.getConnection(false);
             conn2 = DBUtil.getConnection(false);
+            DBUtil.execute(conn1, "USE kungfu");
+            DBUtil.execute(conn2, "USE kungfu");
 
             setIsolationLevel(conn1, "REPEATABLE READ");
             setIsolationLevel(conn2, "REPEATABLE READ");
@@ -356,6 +364,8 @@ public class IsolationLevelDemo {
         try {
             conn1 = DBUtil.getConnection(false);
             conn2 = DBUtil.getConnection(false);
+            DBUtil.execute(conn1, "USE kungfu");
+            DBUtil.execute(conn2, "USE kungfu");
 
             setIsolationLevel(conn1, "SERIALIZABLE");
             setIsolationLevel(conn2, "SERIALIZABLE");

@@ -103,7 +103,7 @@ public class ExplainAnalysisDemo {
             StringBuilder sb = new StringBuilder(
                 "INSERT INTO t_order (order_no, user_id, product_id, amount, status, create_time) VALUES ");
             for (int i = 1; i <= 50000; i++) {
-                if (i > 1) sb.append(",");
+                if (i % 5000 != 1) sb.append(",");
                 // user_id 1~1000, product_id 1~500, amount 10~109, status 0/1/2
                 // create_time 分布在 2025-01-01 ~ 2026-12-31
                 int dayOffset = i % 730;

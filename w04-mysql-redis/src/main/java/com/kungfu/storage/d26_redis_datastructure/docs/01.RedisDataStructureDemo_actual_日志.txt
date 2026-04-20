@@ -1,0 +1,161 @@
+========================================
+  Redis 5 种核心数据结构演示
+========================================
+
+  ✓ Redis 连接成功
+
+=== 一、String（字符串）===
+
+  ★ 场景1: 缓存用户对象
+    命令: SET demo:d26:user:1001 {"id":1001,"name":"Alice","age":28}
+    命令: GET demo:d26:user:1001
+    结果: {"id":1001,"name":"Alice","age":28}
+    命令: EXPIRE demo:d26:user:1001 3600（设置过期时间 1 小时）
+    TTL: 3600 秒
+
+  ★ 场景2: 分布式锁（SETNX）
+    命令: SETNX demo:d26:lock:order:2001 thread-A
+    结果: 1（1=加锁成功）
+    命令: SETNX demo:d26:lock:order:2001 thread-B（模拟另一线程）
+    结果: 0（0=加锁失败，key 已存在）
+    → 这就是分布式锁的基础：互斥性
+
+  ★ 场景3: 计数器（INCR 原子自增）
+    命令: INCR demo:d26:counter:page_view → 1
+    命令: INCR demo:d26:counter:page_view → 2
+    命令: INCR demo:d26:counter:page_view → 3
+    命令: INCR demo:d26:counter:page_view → 4
+    命令: INCR demo:d26:counter:page_view → 5
+    → 原子操作，高并发下不会漏计
+
+  【面试速记】String 场景：
+    1. 对象缓存（JSON 序列化）
+    2. 分布式锁（SETNX/SET NX EX）
+    3. 计数器（INCR/INCRBY，原子操作）
+    4. 限流（固定窗口计数）
+
+=== 二、List（列表）===
+
+  ★ 场景1: 简单消息队列（LPUSH 生产 + RPOP 消费）
+    命令: LPUSH demo:d26:queue:message msg1 msg2 msg3
+    命令: LLEN demo:d26:queue:message → 3
+    消费顺序（RPOP）:
+      RPOP → msg1
+      RPOP → msg2
+      RPOP → msg3
+
+  ★ 场景2: 最新 N 条动态（朋友圈/评论时间线）
+    命令: LRANGE demo:d26:feed:user:1001 0 2（取最新 3 条）
+    结果: [动态5, 动态4, 动态3]
+    命令: LTRIM demo:d26:feed:user:1001 0 2（只保留最新 3 条，防无限膨胀）
+    剩余长度: 3
+
+  【面试速记】List 场景：
+    1. 消息队列（LPUSH+RPOP，或 BRPOP 阻塞消费）
+    2. 最新 N 条列表（LPUSH+LTRIM）
+    3. 栈（LPUSH+LPOP）
+    注意: 生产级消息队列建议用 Stream 或专业 MQ
+
+=== 三、Hash（哈希）===
+
+  ★ 场景: 用户对象存储（字段级读写）
+    命令: HSET demo:d26:user:hash:1001 name Alice age 28 city Beijing
+    命令: HGET demo:d26:user:hash:1001 name → Alice
+    命令: HGETALL demo:d26:user:hash:1001
+    结果: {name=Alice, city=Beijing, age=28}
+    命令: HINCRBY demo:d26:user:hash:1001 age 1（年龄+1）
+    HGET age → 29
+
+  ★ Hash vs String+JSON 对比：
+  ┌──────────────────┬──────────────────────┬──────────────────────────┐
+  │ 维度             │ String+JSON          │ Hash                     │
+  ├──────────────────┼──────────────────────┼──────────────────────────┤
+  │ 整体读写         │ ✓ 一次搞定           │ 需 HGETALL               │
+  │ 改单个字段       │ ✗ 读全部+反序列+改+写 │ ✓ HSET 单字段直接改     │
+  │ 内存占用         │ JSON 有冗余          │ ✓ listpack 压缩更省     │
+  │ 原子操作         │ 字段级不原子         │ ✓ HINCRBY 原子          │
+  └──────────────────┴──────────────────────┴──────────────────────────┘
+
+  【面试速记】Hash 场景：
+    1. 对象存储（字段多、频繁改单字段）
+    2. 购物车（userId → {商品id: 数量}）
+    3. 避免 String+JSON 的反序列化开销
+
+=== 四、Set（集合）===
+
+  ★ 场景1: 共同好友（SINTER 交集）
+    SMEMBERS friends:alice = [Mike, Tom, Lucy, Jerry]
+    SMEMBERS friends:bob   = [Tom, Rose, Lucy, Jack]
+    命令: SINTER friends:alice friends:bob
+    共同好友: [Tom, Lucy]
+
+  ★ 场景2: 抽奖（SRANDMEMBER 随机不重复）
+    抽奖池 SCARD = 10 人
+    命令: SRANDMEMBER demo:d26:lottery:users 3（抽 3 个中奖者）
+    中奖者: [user5, user4, user8]
+    注: SRANDMEMBER 不移除元素；SPOP 抽完即删
+
+  ★ 场景3: 文章标签（天然去重）
+    SADD 插入 4 个（含重复 Java），SCARD = 3
+    SMEMBERS: [Java, MySQL, Redis]
+    SISMEMBER Redis → true
+
+  【面试速记】Set 场景：
+    1. 标签系统（天然去重）
+    2. 共同好友/兴趣（SINTER 交集）
+    3. 随机抽奖（SRANDMEMBER/SPOP）
+    4. UV 统计（大数据量用 HyperLogLog 更省内存）
+
+=== 五、ZSet（有序集合）===
+
+  ★ 场景1: 游戏排行榜（score=分数）
+    命令: ZREVRANGE demo:d26:rank:score 0 2 WITHSCORES（Top 3）
+      第 1 名: player:David (score=4500)
+      第 2 名: player:Bob (score=3200)
+      第 3 名: player:Carol (score=2100)
+    命令: ZREVRANK demo:d26:rank:score player:Carol → 查 Carol 的排名
+    Carol 排名: 第 3 名
+    命令: ZINCRBY demo:d26:rank:score 1000 player:Alice（Alice 加 1000 分）
+    Alice 新分数: 2500.0
+
+  ★ 场景2: 延迟队列（score=执行时间戳）
+    添加 3 个延迟任务（时间戳作为 score）
+    命令: ZRANGEBYSCORE demo:d26:delay:queue 0 1776648145575（取 1 秒内到期的）
+    到期任务: [task:refreshCache, task:sendEmail]
+    → 生产用法: 后台线程定时 ZRANGEBYSCORE + ZREM 消费到期任务
+
+  【面试速记】ZSet 场景：
+    1. 排行榜 TopN（ZREVRANGE）
+    2. 延迟队列（score=时间戳）
+    3. 带权重去重（比 Set 多一个排序维度）
+    底层: listpack（<128 元素）/ skiplist+hashtable
+
+=== 清理 Demo 数据 ===
+
+  ✓ 已删除 11 个 demo:d26: 开头的 key
+
+========================================
+   面试速记（D26）
+========================================
+
+  ┌────────┬──────────────────────┬──────────────────────────────┐
+  │ 结构   │ 典型场景             │ 核心命令                      │
+  ├────────┼──────────────────────┼──────────────────────────────┤
+  │ String │ 缓存/锁/计数         │ SET/GET/SETNX/INCR           │
+  │ List   │ 消息队列/最新N条     │ LPUSH/RPOP/LRANGE/LTRIM      │
+  │ Hash   │ 对象存储             │ HSET/HGET/HGETALL/HINCRBY    │
+  │ Set    │ 去重/交并集/抽奖     │ SADD/SINTER/SRANDMEMBER      │
+  │ ZSet   │ 排行榜/延迟队列      │ ZADD/ZREVRANGE/ZRANGEBYSCORE │
+  └────────┴──────────────────────┴──────────────────────────────┘
+
+  一句话秒答：
+    String=万金油，List=顺序列表，Hash=对象，Set=集合运算，ZSet=排序
+    相关结构：Bitmap（签到）、HyperLogLog（UV）、GEO（地理位置）、Stream（消息流）
+
+  选型决策：
+    需要排序？       → ZSet
+    需要交并差？     → Set
+    按字段存对象？   → Hash
+    需要顺序/队列？  → List
+    其他？           → String
+

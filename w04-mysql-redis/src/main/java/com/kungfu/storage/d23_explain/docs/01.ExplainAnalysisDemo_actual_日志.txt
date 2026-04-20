@@ -1,0 +1,152 @@
+========================================
+  EXPLAIN 逐字段解读
+========================================
+
+  ✓ MySQL 连接成功
+
+=== 准备测试数据 ===
+
+  插入 50000 行，耗时 1342 ms
+
+=== 一、EXPLAIN 输出字段速查表 ===
+
+  ┌──────────────┬──────────────────────────────────────────────────────────┐
+  │ 字段         │ 含义                                                     │
+  ├──────────────┼──────────────────────────────────────────────────────────┤
+  │ id           │ 查询序号，id 相同 → 从上往下执行；id 不同 → id 大的先执行│
+  │ select_type  │ 查询类型：SIMPLE / PRIMARY / SUBQUERY / DERIVED / UNION  │
+  │ table        │ 当前行访问的表名                                         │
+  │ type    ★   │ 访问类型（最重要！从好到差排列，见下表）                  │
+  │ possible_keys│ 可能用到的索引                                           │
+  │ key          │ 实际使用的索引（NULL 表示没用索引）                      │
+  │ key_len      │ 使用的索引长度（越短说明用到的索引列越少）               │
+  │ ref          │ 与索引比较的列或常量                                     │
+  │ rows         │ 预估扫描行数（越少越好）                                │
+  │ filtered     │ 经过条件过滤后剩余行的百分比                             │
+  │ Extra        │ 额外信息（Using index / Using where / Using filesort 等）│
+  └──────────────┴──────────────────────────────────────────────────────────┘
+
+=== 二、type 字段从最优到最差 ===
+
+  ★ 性能排序：system > const > eq_ref > ref > range > index > ALL
+
+  ┌──────────┬──────────────────────────────────┬─────────────────────────────┐
+  │ type     │ 含义                             │ 典型场景                     │
+  ├──────────┼──────────────────────────────────┼─────────────────────────────┤
+  │ system   │ 表只有一行（系统表）             │ 很少见，可忽略               │
+  │ const    │ 主键/唯一索引等值匹配，最多1行   │ WHERE id = 1                │
+  │ eq_ref   │ 关联查询中主键/唯一索引等值匹配  │ JOIN ... ON a.id = b.id     │
+  │ ref      │ 非唯一索引等值匹配               │ WHERE user_id = 42          │
+  │ range    │ 索引范围扫描                     │ WHERE id BETWEEN 10 AND 50  │
+  │ index    │ 全索引扫描（遍历整棵索引树）     │ SELECT user_id FROM t_order │
+  │ ALL  ✗  │ 全表扫描（最差）                 │ 没有可用索引                 │
+  └──────────┴──────────────────────────────────┴─────────────────────────────┘
+
+  ★ 优化目标：至少达到 range 级别，避免 ALL 全表扫描
+
+=== 三(a)、type = const — 主键等值匹配 ===
+
+  场景：通过主键精确查找一行
+
+    SQL: SELECT * FROM t_order WHERE id = 1
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                const               PRIMARY             PRIMARY             8                   const               1                   100.0               NULL                
+    (1 rows)
+
+  解读：
+    - type = const → 主键等值匹配，最多返回 1 行
+    - key = PRIMARY → 使用主键索引
+    - rows = 1 → 只扫描 1 行
+    → 这是最高效的单行查询方式
+
+=== 三(b)、type = ref — 非唯一索引等值匹配 ===
+
+  场景：通过普通索引查找（可能返回多行）
+
+    SQL: SELECT * FROM t_order WHERE user_id = 42
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                ref                 idx_user_id         idx_user_id         8                   const               50                  100.0               NULL                
+    (1 rows)
+
+  解读：
+    - type = ref → 非唯一索引等值查找
+    - key = idx_user_id → 使用 user_id 索引
+    - ref = const → 与常量 42 比较
+    - rows ≈ 50 → user_id=42 约有 50 行匹配
+    → 常见于根据外键/状态等非唯一字段查询
+
+=== 三(c)、type = range — 索引范围扫描 ===
+
+  场景：使用索引进行范围查询（BETWEEN / > / < / IN）
+
+    SQL: SELECT * FROM t_order WHERE user_id BETWEEN 10 AND 50
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                range               idx_user_id         idx_user_id         8                   NULL                2050                100.0               Using index condition
+    (1 rows)
+
+  解读：
+    - type = range → 在索引树上做范围扫描
+    - key = idx_user_id → 使用 user_id 索引
+    - rows → 扫描的行数与范围大小成正比
+    → BETWEEN/IN/>/</>=/<=  都可能走 range
+
+=== 三(d)、type = index — 全索引扫描 ===
+
+  场景：查询的列都在索引中（覆盖索引），但没有 WHERE 限制
+
+    SQL: SELECT user_id FROM t_order
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                index               NULL                idx_user_id         8                   NULL                50000               100.0               Using index         
+    (1 rows)
+
+  解读：
+    - type = index → 遍历整棵索引树（不回表）
+    - key = idx_user_id → 直接扫描 user_id 索引
+    - Extra: Using index → 覆盖索引，不需要回表
+    - rows ≈ 50000 → 虽然全扫，但只读索引页，比 ALL 快
+    → index 比 ALL 好，因为索引比数据行小得多
+
+=== 三(e)、type = ALL — 全表扫描（最差）===
+
+  场景：没有可用索引，只能逐行扫描整张表
+
+    SQL: SELECT * FROM t_order WHERE amount > 100
+    id                  select_type         table               partitions          type                possible_keys       key                 key_len             ref                 rows                filtered            Extra               
+    1                   SIMPLE              t_order             NULL                ALL                 NULL                NULL                NULL                NULL                50000               33.33               Using where         
+    (1 rows)
+
+  解读：
+    - type = ALL → 全表扫描，逐行读取
+    - key = NULL → 没有可用索引
+    - rows ≈ 50000 → 扫描全部行
+    - 这是最慢的访问方式，必须优化！
+    → 解决：给 amount 加索引，或者改用有索引的列做筛选
+
+=== 四、Extra 字段常见值解读 ===
+
+  ┌──────────────────────────┬──────────────────────────────────────────────┐
+  │ Extra 值                 │ 含义                                         │
+  ├──────────────────────────┼──────────────────────────────────────────────┤
+  │ Using index         ✓   │ 覆盖索引，不需要回表（好）                   │
+  │ Using where              │ 存储引擎返回后还需要在Server层过滤           │
+  │ Using index condition    │ 索引下推（ICP），在存储引擎层用索引过滤       │
+  │ Using temporary     ✗   │ 使用了临时表（常见于 GROUP BY / DISTINCT）    │
+  │ Using filesort      ✗   │ 使用了文件排序（ORDER BY 没走索引）           │
+  │ Using join buffer        │ 关联查询使用了 Block Nested Loop 缓冲         │
+  └──────────────────────────┴──────────────────────────────────────────────┘
+
+  ★ 看到 Using temporary 或 Using filesort 要警惕，考虑加索引优化
+
+========================================
+  面试速记
+========================================
+
+  1. EXPLAIN 最重要的字段是 type：从好到差 system>const>eq_ref>ref>range>index>ALL
+  2. 优化目标：至少达到 range，杜绝 ALL 全表扫描
+  3. key=NULL 说明没用到索引 → 需要添加索引或改写 SQL
+  4. rows 越大说明扫描越多 → 索引选择性差或没走索引
+  5. Extra 中 Using index = 覆盖索引（好），Using filesort/temporary = 需要优化
+  6. const vs ref：const 是主键/唯一索引，最多一行；ref 是普通索引，可能多行
+
+  ✓ 测试表已清理
+
