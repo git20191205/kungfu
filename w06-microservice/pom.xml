@@ -14,4 +14,13 @@
     <name>W06-微服务架构</name>
     <packaging>jar</packaging>
 
+    <dependencies>
+        <!-- HTTP 客户端（模拟 Feign） -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>4.11.0</version>
+        </dependency>
+    </dependencies>
+
 </project>

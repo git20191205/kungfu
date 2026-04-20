@@ -1,0 +1,166 @@
+========================================
+  手写 Mini 链路追踪 — Tracing 原理
+========================================
+
+=== 一、链路追踪核心概念 ===
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │                    Trace / Span 关系                           │
+  │                                                              │
+  │  Trace (一次完整请求链路，共享同一个 TraceId)                  │
+  │  │                                                           │
+  │  ├── Span-A: Gateway (root span)                             │
+  │  │   ├── Span-B: OrderService                                │
+  │  │   │   ├── Span-C: StockService                            │
+  │  │   │   └── Span-D: PaymentService                          │
+  │  │   └── (return)                                            │
+  │  └── (return)                                                │
+  └──────────────────────────────────────────────────────────────┘
+
+  核心字段：
+    ├─ TraceId:      全局唯一，贯穿整条链路 (如 UUID)
+    ├─ SpanId:       当前操作的唯一标识
+    ├─ ParentSpanId: 父操作的 SpanId（root span 为 null）
+    ├─ ServiceName:  服务名称
+    ├─ OperationName:操作名称
+    ├─ StartTime:    开始时间
+    ├─ Duration:     耗时
+    └─ Tags/Logs:    附加信息
+
+=== 二、模拟分布式调用链路 ===
+
+  调用链: Gateway → OrderService → StockService → PaymentService
+
+
+  ── Trace 树 ──
+
+  TraceId: 05d65f89b7f34691
+
+  ┌─ 时间线 (ms) ──────────────────────────────────────────────┐
+  │ api-gateway        [span-01]  65ms  ████████████████████████████████
+  │   order-service      [span-02]  60ms    ██████████████████████████████
+  │     stock-service      [span-03]  16ms           ████████
+  │     payment-service    [span-04]  30ms                   ███████████████
+  └──────────────────────────────────────────────────────────────┘
+
+  ── Trace 数据（类 Zipkin JSON 格式）──
+
+    {
+      "traceId":    "05d65f89b7f34691",
+      "spanId":     "span-01",
+      "parentId":   "",
+      "service":    "api-gateway",
+      "operation":  "/api/order/create",
+      "duration":   65ms,
+      "status":     "OK",
+      "tags":       {http.method=GET, http.url=http://api-gateway//api/order/create, http.status_code=200}
+    }
+    {
+      "traceId":    "05d65f89b7f34691",
+      "spanId":     "span-02",
+      "parentId":   "span-01",
+      "service":    "order-service",
+      "operation":  "/orders/create",
+      "duration":   60ms,
+      "status":     "OK",
+      "tags":       {http.method=GET, http.url=http://order-service//orders/create, http.status_code=200}
+    }
+    {
+      "traceId":    "05d65f89b7f34691",
+      "spanId":     "span-03",
+      "parentId":   "span-02",
+      "service":    "stock-service",
+      "operation":  "/stock/deduct",
+      "duration":   16ms,
+      "status":     "OK",
+      "tags":       {http.method=GET, http.url=http://stock-service//stock/deduct, http.status_code=200}
+    }
+    {
+      "traceId":    "05d65f89b7f34691",
+      "spanId":     "span-04",
+      "parentId":   "span-02",
+      "service":    "payment-service",
+      "operation":  "/pay/process",
+      "duration":   30ms,
+      "status":     "OK",
+      "tags":       {http.method=GET, http.url=http://payment-service//pay/process, http.status_code=200}
+    }
+
+=== 三、TraceId 传播机制 ===
+
+  TraceId 通过 HTTP Header 在服务间传播：
+
+  ┌──────────────┐  HTTP Request   ┌──────────────┐
+  │   Gateway    │ ──────────────→ │ OrderService │
+  │              │  Headers:        │              │
+  │ 生成 TraceId │  X-Trace-Id: abc│ 读取 TraceId │
+  │ 生成 SpanId  │  X-Span-Id: s01 │ 生成新 SpanId│
+  └──────────────┘                 └──────┬───────┘
+                                          │
+                    HTTP Request          ▼
+                   ┌──────────────────────────────┐
+                   │  Headers:                    │
+                   │  X-Trace-Id: abc (同一个)    │
+                   │  X-Span-Id: s02 (新的)      │
+                   │  X-Parent-Span-Id: s01      │
+                   └──────────────┬───────────────┘
+                                  ▼
+                           ┌──────────────┐
+                           │ StockService │
+                           └──────────────┘
+
+  传播方式：
+    ├─ HTTP Header:  X-B3-TraceId / X-Trace-Id
+    ├─ gRPC Metadata: 类似 HTTP Header
+    ├─ MQ Message:   消息属性中携带 TraceId
+    └─ ThreadLocal:  同进程内通过 ThreadLocal 传递
+
+=== 四、链路追踪框架对比 ===
+
+  ┌──────────────┬──────────────────┬──────────────────┬──────────────────┐
+  │              │ SkyWalking ★    │ Zipkin           │ Jaeger           │
+  ├──────────────┼──────────────────┼──────────────────┼──────────────────┤
+  │ 探针方式     │ Java Agent(无侵入)│ SDK 埋点(侵入)  │ SDK 埋点(侵入)  │
+  │ 性能影响     │ ★ 极小          │ 较小             │ 较小             │
+  │ 存储         │ ES/H2/MySQL      │ ES/MySQL/Cassandra│ ES/Cassandra    │
+  │ UI          │ ★ 功能丰富      │ 简洁             │ 功能丰富         │
+  │ 告警         │ ✓ 内置          │ ✗               │ ✗               │
+  │ 服务拓扑     │ ✓ 自动生成      │ ✓ 依赖图        │ ✓ 依赖图        │
+  │ 语言支持     │ Java/.NET/Go/PHP │ 多语言           │ 多语言           │
+  │ 社区         │ Apache 顶级项目  │ Twitter 开源     │ Uber 开源(CNCF) │
+  └──────────────┴──────────────────┴──────────────────┴──────────────────┘
+
+=== 五、SkyWalking 架构 ===
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │                    SkyWalking 架构                             │
+  │                                                              │
+  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+  │  │ Service A   │  │ Service B   │  │ Service C   │         │
+  │  │ + Agent     │  │ + Agent     │  │ + Agent     │         │
+  │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
+  │         │ gRPC           │ gRPC           │ gRPC            │
+  │         └────────────────┼────────────────┘                 │
+  │                          ▼                                   │
+  │              ┌───────────────────────┐                       │
+  │              │   OAP Server          │                       │
+  │              │  (分析 + 聚合 + 告警) │                       │
+  │              └───────────┬───────────┘                       │
+  │                   ┌──────┴──────┐                            │
+  │                   ▼             ▼                            │
+  │           ┌────────────┐ ┌────────────┐                     │
+  │           │ Storage    │ │ UI         │                     │
+  │           │ (ES/MySQL) │ │ (Dashboard)│                     │
+  │           └────────────┘ └────────────┘                     │
+  └──────────────────────────────────────────────────────────────┘
+
+  ★ SkyWalking 优势：
+    1. Java Agent 方式，无代码侵入（-javaagent:skywalking-agent.jar）
+    2. 自动采集: HTTP / Dubbo / MySQL / Redis / MQ 等
+    3. 服务拓扑图自动生成
+    4. 内置告警规则（响应时间、错误率等）
+
+【知识串联】
+  D42 熔断降级 → D43 链路追踪 → 微服务可观测性三大支柱
+  可观测性 = Tracing(链路追踪) + Metrics(指标监控) + Logging(日志)
+  SkyWalking Agent 基于 Java Agent 技术（字节码增强，类似 D15 AOP）

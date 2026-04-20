@@ -1,0 +1,162 @@
+========================================
+  手写 Mini 网关 — Gateway 原理
+========================================
+
+=== 一、网关架构 ===
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │                    API Gateway 架构                            │
+  │                                                              │
+  │  Client ──→ ┌──────────────────────────────┐                 │
+  │             │         API Gateway          │                 │
+  │             │  ┌────────────────────────┐  │                 │
+  │             │  │ Pre-Filters            │  │                 │
+  │             │  │  ├─ AuthFilter         │  │                 │
+  │             │  │  ├─ RateLimitFilter    │  │                 │
+  │             │  │  └─ LogFilter          │  │                 │
+  │             │  ├────────────────────────┤  │                 │
+  │             │  │ Route Matching         │  │                 │
+  │             │  │  /api/order/** → :8081 │  │                 │
+  │             │  │  /api/stock/** → :8082 │  │                 │
+  │             │  ├────────────────────────┤  │                 │
+  │             │  │ Post-Filters           │  │                 │
+  │             │  │  └─ LogFilter          │  │                 │
+  │             │  └────────────────────────┘  │                 │
+  │             └──────────┬───────────────────┘                 │
+  │           ┌────────────┼────────────┐                        │
+  │           ▼            ▼            ▼                        │
+  │    order-service  stock-service  pay-service                 │
+  └──────────────────────────────────────────────────────────────┘
+
+=== 二、模拟网关请求处理 ===
+
+  场景1: 正常请求（带Token）
+    ┌─ Gateway 处理请求 ─────────────────────────────
+    │ 请求: GET /api/order/1001
+    │ [Pre-Filters]
+      [Log-Pre] #1 GET /api/order/1001 from 10.0.0.1
+      [RateLimit] 获取令牌成功 ✓ (剩余: 2.0)
+      [Auth] /api/order/1001 → Token验证通过 ✓
+    │ [Route] 匹配: order-route → 转发到 http://order-service:8081
+    │ [Post-Filters]
+      [Log-Post] #1 → 200
+    │ → 最终响应: 200 {"from":"http://order-service:8081","result":"ok"}
+    └──────────────────────────────────────────────
+
+  场景2: 未认证请求（无Token）
+    ┌─ Gateway 处理请求 ─────────────────────────────
+    │ 请求: GET /api/stock/SKU-001
+    │ [Pre-Filters]
+      [Log-Pre] #2 GET /api/stock/SKU-001 from 10.0.0.2
+      [RateLimit] 获取令牌成功 ✓ (剩余: 1.0)
+      [Auth] /api/stock/SKU-001 → 未携带Token，拒绝 ✗
+    │ → 过滤器短路，直接返回 401
+    └──────────────────────────────────────────────
+
+  场景3: 白名单路径（登录接口）
+    ┌─ Gateway 处理请求 ─────────────────────────────
+    │ 请求: POST /api/auth/login
+    │ [Pre-Filters]
+      [Log-Pre] #3 POST /api/auth/login from 10.0.0.3
+      [RateLimit] 获取令牌成功 ✓ (剩余: 0.0)
+      [Auth] /api/auth/login → 白名单放行 ✓
+    │ [Route] 匹配: auth-route → 转发到 http://auth-service:8083
+    │ [Post-Filters]
+      [Log-Post] #3 → 200
+    │ → 最终响应: 200 {"from":"http://auth-service:8083","result":"ok"}
+    └──────────────────────────────────────────────
+
+  场景4: 连续请求触发限流
+    ┌─ Gateway 处理请求 ─────────────────────────────
+    │ 请求: GET /api/auth/register
+    │ [Pre-Filters]
+      [Log-Pre] #4 GET /api/auth/register from 10.0.0.4
+      [RateLimit] 令牌不足，限流 ✗ (剩余: 0.0)
+    │ → 过滤器短路，直接返回 429
+    └──────────────────────────────────────────────
+    → 第 1 次请求被限流！
+    ┌─ Gateway 处理请求 ─────────────────────────────
+    │ 请求: GET /api/auth/register
+    │ [Pre-Filters]
+      [Log-Pre] #5 GET /api/auth/register from 10.0.0.4
+      [RateLimit] 令牌不足，限流 ✗ (剩余: 0.0)
+    │ → 过滤器短路，直接返回 429
+    └──────────────────────────────────────────────
+    → 第 2 次请求被限流！
+    ┌─ Gateway 处理请求 ─────────────────────────────
+    │ 请求: GET /api/auth/register
+    │ [Pre-Filters]
+      [Log-Pre] #6 GET /api/auth/register from 10.0.0.4
+      [RateLimit] 令牌不足，限流 ✗ (剩余: 0.0)
+    │ → 过滤器短路，直接返回 429
+    └──────────────────────────────────────────────
+    → 第 3 次请求被限流！
+
+  场景5: 无匹配路由
+    ┌─ Gateway 处理请求 ─────────────────────────────
+    │ 请求: GET /api/unknown/test
+    │ [Pre-Filters]
+      [Log-Pre] #7 GET /api/unknown/test from 10.0.0.5
+      [RateLimit] 令牌不足，限流 ✗ (剩余: 0.0)
+    │ → 过滤器短路，直接返回 429
+    └──────────────────────────────────────────────
+
+=== 三、Gateway 谓词类型 ===
+
+  ┌──────────────────┬──────────────────────────────────────────┐
+  │ 谓词类型         │ 示例                                     │
+  ├──────────────────┼──────────────────────────────────────────┤
+  │ Path             │ Path=/api/order/**                       │
+  │ Method           │ Method=GET,POST                          │
+  │ Header           │ Header=X-Request-Id, \d+                │
+  │ Query            │ Query=name, zhangsan                     │
+  │ Host             │ Host=**.example.com                      │
+  │ RemoteAddr       │ RemoteAddr=192.168.1.0/24                │
+  │ Between          │ Between=时间1, 时间2                     │
+  │ Weight           │ Weight=group1, 8 (灰度发布)              │
+  └──────────────────┴──────────────────────────────────────────┘
+
+=== 四、网关对比 ===
+
+  ┌──────────────┬──────────────────┬──────────────────┬──────────────────┐
+  │              │ Gateway ★       │ Zuul 1.x         │ Nginx            │
+  ├──────────────┼──────────────────┼──────────────────┼──────────────────┤
+  │ 异步模型     │ Netty + WebFlux  │ Servlet 阻塞     │ 事件驱动         │
+  │ 性能         │ ★ 高            │ 一般             │ ★★ 极高         │
+  │ 编程语言     │ Java             │ Java             │ C + Lua          │
+  │ 动态路由     │ ✓               │ ✓               │ 需 reload        │
+  │ 限流熔断     │ 集成 Sentinel    │ 集成 Hystrix     │ 需 Lua 扩展      │
+  │ 服务发现     │ ✓ Nacos/Eureka  │ ✓ Eureka        │ ✗ 需配置         │
+  │ 适用场景     │ Spring Cloud     │ 老项目           │ 静态资源/反代    │
+  └──────────────┴──────────────────┴──────────────────┴──────────────────┘
+
+=== 五、生产配置模板 ===
+
+  # application.yml — Spring Cloud Gateway 配置
+  spring:
+    cloud:
+      gateway:
+        routes:
+          - id: order-service
+            uri: lb://order-service
+            predicates:
+              - Path=/api/order/**
+            filters:
+              - StripPrefix=1
+              - name: RequestRateLimiter
+                args:
+                  redis-rate-limiter.replenishRate: 10
+                  redis-rate-limiter.burstCapacity: 20
+          - id: stock-service
+            uri: lb://stock-service
+            predicates:
+              - Path=/api/stock/**
+            filters:
+              - StripPrefix=1
+        default-filters:
+          - AddResponseHeader=X-Gateway, KungFu-Gateway
+
+【知识串联】
+  D40 负载均衡 → D41 网关路由 → D42 熔断降级
+  网关 = 路由 + 过滤器链（类似 Servlet Filter，D16 Spring MVC）
+  令牌桶限流在 Sentinel 中也有应用（D42）

@@ -1,0 +1,60 @@
+========================================
+  FeignSimulationDemo 日志分析
+========================================
+
+【整体结果】✅ 手写 Mini Feign 动态代理完整演示成功
+  接口定义 → JDK Proxy → HTTP 请求构建 → 拦截器增强，全链路验证通过
+
+【逐步分析】
+
+┌──────┬──────────────────────────────┬──────────────────────────────────────┐
+│ 步骤 │ 操作                         │ 实际数据 & 分析                       │
+├──────┼──────────────────────────────┼──────────────────────────────────────┤
+│ S1   │ 创建 OrderServiceClient 代理 │ JDK Proxy 生成，无需实现类           │
+│      │                              │ ✓ 接口 + 注解 = 声明式调用          │
+├──────┼──────────────────────────────┼──────────────────────────────────────┤
+│ S2   │ getOrder("ORD-1001")         │ GET http://order-service:8080/       │
+│      │                              │   api/orders/ORD-1001                │
+│      │                              │ 响应: 200 {"orderId":"ORD-1001",    │
+│      │                              │   "status":"PAID"}                   │
+│      │                              │ ✓ @PathVariable 正确解析到 URL      │
+├──────┼──────────────────────────────┼──────────────────────────────────────┤
+│ S3   │ createOrder("U001", 99.9)    │ POST http://order-service:8080/      │
+│      │                              │   api/orders?userId=U001&amount=99.9 │
+│      │                              │ 响应: 201 {"status":"CREATED"}       │
+│      │                              │ ✓ @RequestParam 拼接到 QueryString  │
+├──────┼──────────────────────────────┼──────────────────────────────────────┤
+│ S4   │ 创建 StockServiceClient 代理 │ 不同服务名 → 不同代理实例            │
+│      │                              │ getStock("SKU-001") → 200           │
+│      │                              │ ✓ 多服务代理互不干扰                │
+├──────┼──────────────────────────────┼──────────────────────────────────────┤
+│ S5   │ 拦截器增强调用               │ Header 自动注入:                     │
+│      │                              │   Authorization: Bearer eyJhbG...    │
+│      │                              │   X-Request-Id: cc12e5a7            │
+│      │                              │   X-Log-Timestamp: 1776657380570    │
+│      │                              │ ✓ 拦截器链在请求发送前生效          │
+└──────┴──────────────────────────────┴──────────────────────────────────────┘
+
+【重点观察 1】JDK 动态代理核心机制
+  ★ Proxy.newProxyInstance(classLoader, interfaces, handler)
+  ├─ InvocationHandler.invoke() 拦截所有方法调用
+  ├─ 解析方法注解 → 构建 RequestTemplate → 发送 HTTP
+  └─ 与 Spring AOP 的 JdkDynamicAopProxy 同源（D15）
+
+【重点观察 2】注解解析 → URL 构建
+  ★ @GetMapping("/api/orders/{id}") + @PathVariable
+  ├─ {id} 占位符替换为实际参数值 "ORD-1001"
+  ├─ @RequestParam → 拼接 ?key=value 到 URL
+  └─ Content-Type: application/json 默认添加
+
+【重点观察 3】拦截器链设计
+  ★ RequestInterceptor 接口 — 请求发送前的切面
+  ├─ AuthInterceptor: 注入 Authorization Header（Token 传递）
+  ├─ TraceInterceptor: 注入 X-Request-Id（链路追踪）
+  └─ 生产中常用: 签名校验、灰度标记、租户ID 透传
+
+【结论】
+  ✅ Feign 本质 = JDK 动态代理 + 注解解析 + HTTP Client
+  ✅ 声明式调用: 像调本地方法一样调远程服务
+  ★ 面试关键词: 动态代理 / RequestTemplate / 拦截器链
+  ★ 与 RestTemplate 对比: Feign 代码量少、可读性好、内置 Ribbon 负载均衡

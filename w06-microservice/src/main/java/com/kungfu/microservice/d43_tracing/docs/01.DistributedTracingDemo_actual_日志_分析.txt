@@ -1,0 +1,68 @@
+========================================
+  DistributedTracingDemo 日志分析
+========================================
+
+【整体结果】✅ 手写 Mini 链路追踪完整演示成功
+  TraceId 贯穿 4 个服务，Span 父子关系正确，耗时瀑布图清晰
+
+【逐步分析】
+
+┌──────┬──────────────────────────┬──────────────────────────────────────┐
+│ Span │ 服务 → 操作              │ 实际数据 & 分析                       │
+├──────┼──────────────────────────┼──────────────────────────────────────┤
+│ S-01 │ api-gateway              │ TraceId: 05d65f89b7f34691            │
+│      │ /api/order/create        │ parentId: "" (root span)             │
+│      │                          │ duration: 65ms ★ 总耗时             │
+│      │                          │ status: OK, http_status: 200         │
+│      │                          │ ✓ 入口 Span，包含整条链路耗时       │
+├──────┼──────────────────────────┼──────────────────────────────────────┤
+│ S-02 │ order-service            │ parentId: span-01 (gateway 的子节点) │
+│      │ /orders/create           │ duration: 60ms                       │
+│      │                          │ ✓ 65ms - 60ms = 5ms 网关自身开销   │
+├──────┼──────────────────────────┼──────────────────────────────────────┤
+│ S-03 │ stock-service            │ parentId: span-02 (order 的子节点)   │
+│      │ /stock/deduct            │ duration: 16ms                       │
+│      │                          │ ✓ 扣库存操作，耗时最短             │
+├──────┼──────────────────────────┼──────────────────────────────────────┤
+│ S-04 │ payment-service          │ parentId: span-02 (order 的子节点)   │
+│      │ /pay/process             │ duration: 30ms                       │
+│      │                          │ ✓ 支付操作，耗时最长的下游服务     │
+└──────┴──────────────────────────┴──────────────────────────────────────┘
+
+【重点观察 1】Trace 树结构与耗时分析
+  ★ 瀑布图时间线:
+  │ gateway     [span-01] 65ms  ████████████████████████████████
+  │   order       [span-02] 60ms    ██████████████████████████████
+  │     stock       [span-03] 16ms       ████████
+  │     payment     [span-04] 30ms               ███████████████
+  ├─ gateway 总耗时 65ms = 自身 5ms + order 60ms
+  ├─ order 总耗时 60ms = 自身 14ms + stock 16ms + payment 30ms
+  ├─ stock 和 payment 是 order 的子 Span（串行调用）
+  └─ 瓶颈定位: payment 30ms 占总耗时 46%
+
+【重点观察 2】TraceId 传播机制
+  ★ 4 个 Span 共享同一个 TraceId: 05d65f89b7f34691
+  ├─ HTTP Header 传播: X-Trace-Id / X-Span-Id / X-Parent-Span-Id
+  ├─ 每个服务读取 TraceId + 生成新 SpanId + 记录 ParentSpanId
+  ├─ 同进程内通过 ThreadLocal 传递（跨线程需特殊处理）
+  └─ 面试考点: 异步场景下 TraceId 丢失怎么办？
+     答: 用 TransmittableThreadLocal 或手动传递
+
+【重点观察 3】SkyWalking vs Zipkin vs Jaeger
+  ★ SkyWalking 优势（面试推荐答案）:
+  ├─ Java Agent 无侵入（-javaagent 参数即可）
+  ├─ 自动采集 HTTP/Dubbo/MySQL/Redis/MQ
+  ├─ 服务拓扑图自动生成 + 内置告警
+  └─ Zipkin/Jaeger 需要 SDK 埋点（代码侵入）
+
+【重点观察 4】可观测性三大支柱
+  ★ Tracing(链路追踪) + Metrics(指标监控) + Logging(日志)
+  ├─ Tracing: 定位慢请求在哪个服务（本 Demo）
+  ├─ Metrics: Prometheus + Grafana 监控 QPS/RT/错误率
+  └─ Logging: ELK 集中日志，通过 TraceId 关联
+
+【结论】
+  ✅ 链路追踪核心: TraceId 全局唯一 + SpanId 标识每个操作
+  ✅ 瀑布图可快速定位性能瓶颈（payment 30ms 占比最高）
+  ★ 面试关键词: Trace/Span/TraceId传播 / SkyWalking Agent / 可观测性
+  ★ 生产选型: SkyWalking（无侵入 + 功能全）> Zipkin/Jaeger

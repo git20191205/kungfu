@@ -1,0 +1,167 @@
+========================================
+  手写 Mini Feign — 声明式服务调用
+========================================
+
+=== 一、Feign 核心原理 ===
+
+  Feign 的本质: 接口 + 注解 → 动态代理 → HTTP 调用
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │                    Feign 工作流程                              │
+  │                                                              │
+  │  @FeignClient("order-service")                               │
+  │  interface OrderClient {                                     │
+  │      @GetMapping("/orders/{id}")                             │
+  │      Order getOrder(@PathVariable Long id);                  │
+  │  }                                                           │
+  │         │                                                    │
+  │         ▼                                                    │
+  │  ┌─────────────┐    ┌──────────────┐    ┌──────────────┐    │
+  │  │ JDK Proxy   │ →  │ RequestTemplate│ →  │ HTTP Client  │    │
+  │  │ (动态代理)   │    │ (请求模板)    │    │ (发送请求)   │    │
+  │  └─────────────┘    └──────────────┘    └──────────────┘    │
+  │         ↑                   ↑                   ↑           │
+  │    解析接口+注解       填充参数+URL        拦截器增强         │
+  └──────────────────────────────────────────────────────────────┘
+
+  核心步骤：
+    1. @EnableFeignClients 扫描所有 @FeignClient 接口
+    2. 为每个接口创建 JDK 动态代理
+    3. 调用方法时 → 解析注解 → 构建 RequestTemplate
+    4. 经过拦截器链 → 发送 HTTP 请求 → 解码响应
+
+=== 二、手写 Mini Feign 动态代理 ===
+
+  ★ 创建 OrderServiceClient 代理...
+
+  调用 orderClient.getOrder("ORD-1001"):
+
+    ┌─ Feign 代理拦截 ─────────────────────────────────
+    │ 服务: order-service
+    │ 方法: getOrder()
+    │ 请求: GET http://order-service:8080/api/orders/ORD-1001 HTTP/1.1
+      Content-Type: application/json
+
+    │ → 模拟 HTTP 调用...
+    │ ← 响应: 200 {"orderId":"ORD-1001","status":"PAID"}
+    └──────────────────────────────────────────────────
+    返回值: {"orderId":"ORD-1001","status":"PAID"}
+
+  调用 orderClient.createOrder("U001", 99.9):
+
+    ┌─ Feign 代理拦截 ─────────────────────────────────
+    │ 服务: order-service
+    │ 方法: createOrder()
+    │ 请求: POST http://order-service:8080/api/orders?userId=U001&amount=99.9 HTTP/1.1
+      Content-Type: application/json
+
+    │ → 模拟 HTTP 调用...
+    │ ← 响应: 201 {"orderId":"ORD-1002","status":"CREATED"}
+    └──────────────────────────────────────────────────
+    返回值: {"orderId":"ORD-1002","status":"CREATED"}
+
+  ★ 创建 StockServiceClient 代理...
+
+  调用 stockClient.getStock("SKU-001"):
+
+    ┌─ Feign 代理拦截 ─────────────────────────────────
+    │ 服务: stock-service
+    │ 方法: getStock()
+    │ 请求: GET http://stock-service:8081/api/stock/SKU-001 HTTP/1.1
+      Content-Type: application/json
+
+    │ → 模拟 HTTP 调用...
+    │ ← 响应: 200 {"sku":"SKU-001","quantity":100}
+    └──────────────────────────────────────────────────
+    返回值: {"sku":"SKU-001","quantity":100}
+
+  ✓ 关键点: 我们只定义了接口，没有写任何实现类！
+    Feign 通过 JDK Proxy 自动生成了实现。
+
+=== 三、Feign 拦截器 ===
+
+  拦截器可以在请求发送前修改请求（添加 Header、签名等）
+
+  带拦截器调用 getOrder("ORD-2001"):
+
+    ┌─ Feign 代理拦截 ─────────────────────────────────
+    │ 服务: order-service
+    │ 方法: getOrder()
+    │ 请求: GET http://order-service:8080/api/orders/ORD-2001 HTTP/1.1
+      Content-Type: application/json
+      Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+      X-Request-Id: cc12e5a7
+      X-Log-Timestamp: 1776657380570
+
+    │ → 模拟 HTTP 调用...
+    │ ← 响应: 200 {"orderId":"ORD-1001","status":"PAID"}
+    └──────────────────────────────────────────────────
+
+  ✓ 注意 Header 中自动添加了 Authorization 和 X-Request-Id
+
+=== 四、服务调用方式对比 ===
+
+  ┌──────────────┬──────────────────┬──────────────────┬──────────────────┐
+  │              │ RestTemplate     │ Feign ★         │ WebClient        │
+  ├──────────────┼──────────────────┼──────────────────┼──────────────────┤
+  │ 编程风格     │ 命令式           │ 声明式           │ 响应式           │
+  │ 使用方式     │ 手动拼 URL       │ 接口 + 注解      │ 链式 API         │
+  │ 负载均衡     │ @LoadBalanced    │ 内置 Ribbon      │ 需手动集成       │
+  │ 熔断集成     │ 需手动           │ fallback 属性    │ 需手动           │
+  │ 代码量       │ 多               │ 少 ★            │ 中               │
+  │ 可读性       │ 一般             │ 好 ★            │ 一般             │
+  │ 异步支持     │ ✗               │ ✗               │ ✓ 原生           │
+  │ Spring 版本  │ 5.x 已废弃      │ 推荐             │ WebFlux 推荐     │
+  └──────────────┴──────────────────┴──────────────────┴──────────────────┘
+
+  代码对比：
+    // RestTemplate（命令式）
+    Order order = restTemplate.getForObject(
+        "http://order-service/api/orders/" + orderId, Order.class);
+
+    // Feign（声明式）★ 推荐
+    Order order = orderClient.getOrder(orderId);  // 像调本地方法
+
+    // WebClient（响应式）
+    Mono<Order> order = webClient.get()
+        .uri("/api/orders/{id}", orderId).retrieve().bodyToMono(Order.class);
+
+=== 五、Feign + Ribbon 集成 ===
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │              Feign + Ribbon + Nacos 调用链路                   │
+  │                                                              │
+  │  orderClient.getOrder(id)                                    │
+  │         │                                                    │
+  │         ▼                                                    │
+  │  ┌─────────────┐                                            │
+  │  │ Feign Proxy  │  解析 @FeignClient("order-service")        │
+  │  └──────┬──────┘                                            │
+  │         ▼                                                    │
+  │  ┌─────────────┐  从 Nacos 获取 order-service 实例列表       │
+  │  │   Ribbon     │  [192.168.1.1:8080, 192.168.1.2:8080]      │
+  │  │  负载均衡    │  选择一个实例（轮询/随机/权重）              │
+  │  └──────┬──────┘                                            │
+  │         ▼                                                    │
+  │  ┌─────────────┐                                            │
+  │  │ HTTP Client  │  GET http://192.168.1.1:8080/orders/1001   │
+  │  └──────┬──────┘                                            │
+  │         ▼                                                    │
+  │  ┌─────────────┐                                            │
+  │  │ order-service│  处理请求，返回结果                         │
+  │  └─────────────┘                                            │
+  └──────────────────────────────────────────────────────────────┘
+
+  ★ 面试必背：
+    Q: Feign 的工作原理？
+    A: 1) @EnableFeignClients 扫描 @FeignClient 接口
+       2) 为每个接口创建 JDK 动态代理（InvocationHandler）
+       3) 调用方法时解析注解，构建 RequestTemplate
+       4) 经过拦截器链（添加 Header、签名等）
+       5) 通过 Ribbon 负载均衡选择实例
+       6) 用 HTTP Client 发送请求，解码响应
+
+【知识串联】
+  D38 注册发现 → D39 Feign 服务调用 → D40 负载均衡
+  Feign 底层依赖 Ribbon 做负载均衡，依赖 Nacos 做服务发现
+  Feign 的核心是 JDK 动态代理（D15 Spring AOP 同源技术）
