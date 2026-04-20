@@ -1,0 +1,7 @@
+22912 sun.tools.jps.Jps
+37764 com.kungfu.jvm.d3_tuning.ThreadTroubleshootingDemo
+11000 org.jetbrains.jps.cmdline.Launcher
+15288 org.jetbrains.jps.cmdline.Launcher
+32984 org.jetbrains.jps.cmdline.Launcher
+4552 com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo
+14492 com.intellij.idea.Main

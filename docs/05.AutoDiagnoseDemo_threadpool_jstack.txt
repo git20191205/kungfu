@@ -1,0 +1,253 @@
+2026-03-21 11:07:43
+Full thread dump Java HotSpot(TM) 64-Bit Server VM (25.441-b07 mixed mode):
+
+"biz-pool-27" #27 daemon prio=5 os_prio=0 tid=0x0000021866f80000 nid=0x58cc waiting on condition [0x000000798f4ff000]
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+	at java.lang.Thread.sleep(Native Method)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.lambda$diagnoseThreadPoolFull$4(AutoDiagnoseDemo.java:213)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo$$Lambda$5/0x00000007c009e428.run(Unknown Source)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+
+"biz-pool-26" #26 daemon prio=5 os_prio=0 tid=0x0000021866f7f000 nid=0x5a3c waiting on condition [0x000000798f3fe000]
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+	at java.lang.Thread.sleep(Native Method)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.lambda$diagnoseThreadPoolFull$4(AutoDiagnoseDemo.java:213)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo$$Lambda$5/0x00000007c009e428.run(Unknown Source)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+
+"biz-pool-25" #25 daemon prio=5 os_prio=0 tid=0x0000021866f7c000 nid=0xb568 waiting on condition [0x000000798f2ff000]
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+	at java.lang.Thread.sleep(Native Method)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.lambda$diagnoseThreadPoolFull$4(AutoDiagnoseDemo.java:213)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo$$Lambda$5/0x00000007c009e428.run(Unknown Source)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+
+"biz-pool-24" #24 daemon prio=5 os_prio=0 tid=0x0000021866f7b800 nid=0xb678 waiting on condition [0x000000798f1fe000]
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+	at java.lang.Thread.sleep(Native Method)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.lambda$diagnoseThreadPoolFull$4(AutoDiagnoseDemo.java:213)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo$$Lambda$5/0x00000007c009e428.run(Unknown Source)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+
+"biz-pool-23" #23 daemon prio=5 os_prio=0 tid=0x00000218671f5800 nid=0x6504 waiting on condition [0x000000798f0ff000]
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+	at java.lang.Thread.sleep(Native Method)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.lambda$diagnoseThreadPoolFull$4(AutoDiagnoseDemo.java:213)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo$$Lambda$5/0x00000007c009e428.run(Unknown Source)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:511)
+	at java.util.concurrent.FutureTask.run(FutureTask.java:266)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
+	at java.lang.Thread.run(Thread.java:750)
+
+"deadlock-thread-2" #22 daemon prio=5 os_prio=0 tid=0x00000218671f7800 nid=0x2648 waiting for monitor entry [0x000000798efff000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.lambda$diagnoseDeadlock$2(AutoDiagnoseDemo.java:156)
+	- waiting to lock <0x000000066c16b970> (a java.lang.Object)
+	- locked <0x000000066c16b980> (a java.lang.Object)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo$$Lambda$3/0x00000007c009d028.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+
+"deadlock-thread-1" #21 daemon prio=5 os_prio=0 tid=0x00000218671f6800 nid=0x8f60 waiting for monitor entry [0x000000798eeff000]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.lambda$diagnoseDeadlock$1(AutoDiagnoseDemo.java:146)
+	- waiting to lock <0x000000066c16b980> (a java.lang.Object)
+	- locked <0x000000066c16b970> (a java.lang.Object)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo$$Lambda$2/0x00000007c009cc28.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+
+"cpu-hog-thread" #20 daemon prio=5 os_prio=0 tid=0x00000218671cd000 nid=0x61dc runnable [0x000000798edff000]
+   java.lang.Thread.State: RUNNABLE
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.lambda$diagnoseCpuSpike$0(AutoDiagnoseDemo.java:79)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo$$Lambda$1/0x00000007c008c428.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+
+"Service Thread" #19 daemon prio=9 os_prio=0 tid=0x0000021864c25800 nid=0x5eb8 runnable [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C1 CompilerThread11" #18 daemon prio=9 os_prio=2 tid=0x0000021864b30800 nid=0xb334 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C1 CompilerThread10" #17 daemon prio=9 os_prio=2 tid=0x0000021864b33000 nid=0x2ae4 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C1 CompilerThread9" #16 daemon prio=9 os_prio=2 tid=0x0000021864b2f000 nid=0xb3e4 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C1 CompilerThread8" #15 daemon prio=9 os_prio=2 tid=0x0000021864b30000 nid=0x9b1c waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread7" #14 daemon prio=9 os_prio=2 tid=0x0000021864b32000 nid=0x47e0 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread6" #13 daemon prio=9 os_prio=2 tid=0x0000021864b31800 nid=0x1024 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread5" #12 daemon prio=9 os_prio=2 tid=0x0000021864b2e800 nid=0x5a60 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread4" #11 daemon prio=9 os_prio=2 tid=0x0000021864b29800 nid=0x9358 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread3" #10 daemon prio=9 os_prio=2 tid=0x0000021864b25000 nid=0x5638 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread2" #9 daemon prio=9 os_prio=2 tid=0x0000021864b1c000 nid=0x7950 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread1" #8 daemon prio=9 os_prio=2 tid=0x0000021864b17800 nid=0xb6cc waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"C2 CompilerThread0" #7 daemon prio=9 os_prio=2 tid=0x0000021864b15800 nid=0x82c0 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"Monitor Ctrl-Break" #6 daemon prio=5 os_prio=0 tid=0x0000021864b0a800 nid=0x2040 runnable [0x000000798deff000]
+   java.lang.Thread.State: RUNNABLE
+	at java.net.SocketInputStream.socketRead0(Native Method)
+	at java.net.SocketInputStream.socketRead(SocketInputStream.java:116)
+	at java.net.SocketInputStream.read(SocketInputStream.java:171)
+	at java.net.SocketInputStream.read(SocketInputStream.java:141)
+	at sun.nio.cs.StreamDecoder.readBytes(StreamDecoder.java:284)
+	at sun.nio.cs.StreamDecoder.implRead(StreamDecoder.java:326)
+	at sun.nio.cs.StreamDecoder.read(StreamDecoder.java:178)
+	- locked <0x000000066c5644e0> (a java.io.InputStreamReader)
+	at java.io.InputStreamReader.read(InputStreamReader.java:184)
+	at java.io.BufferedReader.fill(BufferedReader.java:161)
+	at java.io.BufferedReader.readLine(BufferedReader.java:324)
+	- locked <0x000000066c5644e0> (a java.io.InputStreamReader)
+	at java.io.BufferedReader.readLine(BufferedReader.java:389)
+	at com.intellij.rt.execution.application.AppMainV2$1.run(AppMainV2.java:31)
+
+"Attach Listener" #5 daemon prio=5 os_prio=2 tid=0x0000021864a91000 nid=0xb2f0 waiting on condition [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"Signal Dispatcher" #4 daemon prio=9 os_prio=2 tid=0x0000021864a90000 nid=0x6f84 runnable [0x0000000000000000]
+   java.lang.Thread.State: RUNNABLE
+
+"Finalizer" #3 daemon prio=8 os_prio=1 tid=0x0000021864a39000 nid=0xa98c in Object.wait() [0x000000798dbff000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(Native Method)
+	- waiting on <0x000000066c008f10> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:150)
+	- locked <0x000000066c008f10> (a java.lang.ref.ReferenceQueue$Lock)
+	at java.lang.ref.ReferenceQueue.remove(ReferenceQueue.java:171)
+	at java.lang.ref.Finalizer$FinalizerThread.run(Finalizer.java:188)
+
+"Reference Handler" #2 daemon prio=10 os_prio=2 tid=0x0000021864a38000 nid=0x5590 in Object.wait() [0x000000798dafe000]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(Native Method)
+	- waiting on <0x000000066c006ba0> (a java.lang.ref.Reference$Lock)
+	at java.lang.Object.wait(Object.java:502)
+	at java.lang.ref.Reference.tryHandlePending(Reference.java:191)
+	- locked <0x000000066c006ba0> (a java.lang.ref.Reference$Lock)
+	at java.lang.ref.Reference$ReferenceHandler.run(Reference.java:153)
+
+"main" #1 prio=5 os_prio=0 tid=0x000002182b471000 nid=0x4d3c runnable [0x000000798c4ff000]
+   java.lang.Thread.State: RUNNABLE
+	at java.io.FileInputStream.readBytes(Native Method)
+	at java.io.FileInputStream.read(FileInputStream.java:255)
+	at java.io.BufferedInputStream.read1(BufferedInputStream.java:284)
+	at java.io.BufferedInputStream.read(BufferedInputStream.java:345)
+	- locked <0x000000066c461f98> (a java.io.BufferedInputStream)
+	at sun.nio.cs.StreamDecoder.readBytes(StreamDecoder.java:284)
+	at sun.nio.cs.StreamDecoder.implRead(StreamDecoder.java:326)
+	at sun.nio.cs.StreamDecoder.read(StreamDecoder.java:178)
+	- locked <0x000000066c4640a0> (a java.io.InputStreamReader)
+	at java.io.InputStreamReader.read(InputStreamReader.java:184)
+	at java.io.BufferedReader.fill(BufferedReader.java:161)
+	at java.io.BufferedReader.readLine(BufferedReader.java:324)
+	- locked <0x000000066c4640a0> (a java.io.InputStreamReader)
+	at java.io.BufferedReader.readLine(BufferedReader.java:389)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.runCommand(AutoDiagnoseDemo.java:280)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.diagnoseThreadPoolFull(AutoDiagnoseDemo.java:226)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.main(AutoDiagnoseDemo.java:62)
+
+"VM Thread" os_prio=2 tid=0x0000021864a14800 nid=0xa788 runnable 
+
+"GC task thread#0 (ParallelGC)" os_prio=0 tid=0x000002182b488000 nid=0x4598 runnable 
+
+"GC task thread#1 (ParallelGC)" os_prio=0 tid=0x000002182b489000 nid=0x8a2c runnable 
+
+"GC task thread#2 (ParallelGC)" os_prio=0 tid=0x000002182b48a800 nid=0x48a4 runnable 
+
+"GC task thread#3 (ParallelGC)" os_prio=0 tid=0x000002182b48c000 nid=0xae68 runnable 
+
+"GC task thread#4 (ParallelGC)" os_prio=0 tid=0x000002182b48e000 nid=0xb75c runnable 
+
+"GC task thread#5 (ParallelGC)" os_prio=0 tid=0x000002182b48e800 nid=0x4208 runnable 
+
+"GC task thread#6 (ParallelGC)" os_prio=0 tid=0x000002182b491800 nid=0x1ba4 runnable 
+
+"GC task thread#7 (ParallelGC)" os_prio=0 tid=0x000002182b493000 nid=0x2450 runnable 
+
+"GC task thread#8 (ParallelGC)" os_prio=0 tid=0x000002182b494000 nid=0x9764 runnable 
+
+"GC task thread#9 (ParallelGC)" os_prio=0 tid=0x000002182b495000 nid=0x8e4 runnable 
+
+"GC task thread#10 (ParallelGC)" os_prio=0 tid=0x000002182b497000 nid=0x6f38 runnable 
+
+"GC task thread#11 (ParallelGC)" os_prio=0 tid=0x000002182b49a000 nid=0xb1bc runnable 
+
+"GC task thread#12 (ParallelGC)" os_prio=0 tid=0x000002182b49d000 nid=0xb6ec runnable 
+
+"GC task thread#13 (ParallelGC)" os_prio=0 tid=0x000002182b49e000 nid=0x6eb0 runnable 
+
+"GC task thread#14 (ParallelGC)" os_prio=0 tid=0x000002182b49f000 nid=0x442c runnable 
+
+"GC task thread#15 (ParallelGC)" os_prio=0 tid=0x000002182b4a1800 nid=0xaf34 runnable 
+
+"GC task thread#16 (ParallelGC)" os_prio=0 tid=0x000002182b4a4800 nid=0x3c34 runnable 
+
+"GC task thread#17 (ParallelGC)" os_prio=0 tid=0x000002182b4a9800 nid=0xb3ac runnable 
+
+"GC task thread#18 (ParallelGC)" os_prio=0 tid=0x000002182b4aa800 nid=0x1724 runnable 
+
+"GC task thread#19 (ParallelGC)" os_prio=0 tid=0x000002182b4a8800 nid=0xa920 runnable 
+
+"VM Periodic Task Thread" os_prio=2 tid=0x0000021864c81000 nid=0x65f8 waiting on condition 
+
+JNI global references: 324
+
+
+Found one Java-level deadlock:
+=============================
+"deadlock-thread-2":
+  waiting to lock monitor 0x000002182b5185c8 (object 0x000000066c16b970, a java.lang.Object),
+  which is held by "deadlock-thread-1"
+"deadlock-thread-1":
+  waiting to lock monitor 0x0000021864bde408 (object 0x000000066c16b980, a java.lang.Object),
+  which is held by "deadlock-thread-2"
+
+Java stack information for the threads listed above:
+===================================================
+"deadlock-thread-2":
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.lambda$diagnoseDeadlock$2(AutoDiagnoseDemo.java:156)
+	- waiting to lock <0x000000066c16b970> (a java.lang.Object)
+	- locked <0x000000066c16b980> (a java.lang.Object)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo$$Lambda$3/0x00000007c009d028.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+"deadlock-thread-1":
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo.lambda$diagnoseDeadlock$1(AutoDiagnoseDemo.java:146)
+	- waiting to lock <0x000000066c16b980> (a java.lang.Object)
+	- locked <0x000000066c16b970> (a java.lang.Object)
+	at com.kungfu.jvm.d3_tuning.AutoDiagnoseDemo$$Lambda$2/0x00000007c009cc28.run(Unknown Source)
+	at java.lang.Thread.run(Thread.java:750)
+
+Found 1 deadlock.
+
