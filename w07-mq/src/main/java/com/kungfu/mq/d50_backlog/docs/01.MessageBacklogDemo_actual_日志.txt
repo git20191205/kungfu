@@ -24,6 +24,7 @@
 
 === 二、模拟积压（快速生产 1000 条）===
 
+15:14:12.258 [main] INFO org.apache.kafka.clients.producer.ProducerConfig - ProducerConfig values: 
 	acks = -1
 	auto.include.jmx.reporter = true
 	batch.size = 16384
@@ -113,11 +114,23 @@
 	transactional.id = null
 	value.serializer = class org.apache.kafka.common.serialization.StringSerializer
 
-  ✓ 发送 1000 条消息，耗时 195 ms
+15:14:12.300 [main] INFO org.apache.kafka.clients.producer.KafkaProducer - [Producer clientId=producer-1] Instantiated an idempotent producer.
+15:14:12.423 [main] INFO org.apache.kafka.common.utils.AppInfoParser - Kafka version: 3.5.1
+15:14:12.423 [main] INFO org.apache.kafka.common.utils.AppInfoParser - Kafka commitId: 2c6fb6c54472e90a
+15:14:12.423 [main] INFO org.apache.kafka.common.utils.AppInfoParser - Kafka startTimeMs: 1776669252421
+15:14:12.584 [kafka-producer-network-thread | producer-1] INFO org.apache.kafka.clients.Metadata - [Producer clientId=producer-1] Cluster ID: SneK8_-xR8qlbqRZogm0Ig
+15:14:12.586 [kafka-producer-network-thread | producer-1] INFO org.apache.kafka.clients.producer.internals.TransactionManager - [Producer clientId=producer-1] ProducerId set to 1003 with epoch 0
+  ✓ 发送 1000 条消息，耗时 185 ms
   → 如果消费者没有运行，这 1000 条就是积压
 
+15:14:12.608 [main] INFO org.apache.kafka.clients.producer.KafkaProducer - [Producer clientId=producer-1] Closing the Kafka producer with timeoutMillis = 9223372036854775807 ms.
+15:14:12.611 [main] INFO org.apache.kafka.common.metrics.Metrics - Metrics scheduler closed
+15:14:12.611 [main] INFO org.apache.kafka.common.metrics.Metrics - Closing reporter org.apache.kafka.common.metrics.JmxReporter
+15:14:12.611 [main] INFO org.apache.kafka.common.metrics.Metrics - Metrics reporters closed
+15:14:12.611 [main] INFO org.apache.kafka.common.utils.AppInfoParser - App info kafka.producer for producer-1 unregistered
 === 三、检测消费组 Lag ===
 
+15:14:12.613 [main] INFO org.apache.kafka.clients.admin.AdminClientConfig - AdminClientConfig values: 
 	auto.include.jmx.reporter = true
 	bootstrap.servers = [localhost:9092]
 	client.dns.lookup = use_all_dns_ips
@@ -188,16 +201,20 @@
 	ssl.truststore.password = null
 	ssl.truststore.type = JKS
 
-java.lang.Exception: DisconnectException: Cancelled offsetFetch(api=FIND_COORDINATOR) request with correlation id 35520 due to node 0 being disconnected
-	at org.apache.kafka.clients.admin.KafkaAdminClient$Call.handleTimeoutFailure(KafkaAdminClient.java:848)
-	at org.apache.kafka.clients.admin.KafkaAdminClient$Call.fail(KafkaAdminClient.java:817)
-	at org.apache.kafka.clients.admin.KafkaAdminClient$AdminClientRunnable.handleResponses(KafkaAdminClient.java:1262)
-	at org.apache.kafka.clients.admin.KafkaAdminClient$AdminClientRunnable.processRequests(KafkaAdminClient.java:1421)
-	at org.apache.kafka.clients.admin.KafkaAdminClient$AdminClientRunnable.run(KafkaAdminClient.java:1344)
-	at java.lang.Thread.run(Thread.java:750)
-  ✗ 检测失败: org.apache.kafka.common.errors.TimeoutException: Call(callName=offsetFetch(api=FIND_COORDINATOR), deadlineMs=1776666848169, tries=35518, nextAllowedTryMs=1776666848270) timed out at 1776666848170 after 35518 attempt(s)
-  → 等效命令: kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group demo-d50-group
+15:14:12.623 [main] INFO org.apache.kafka.common.utils.AppInfoParser - Kafka version: 3.5.1
+15:14:12.623 [main] INFO org.apache.kafka.common.utils.AppInfoParser - Kafka commitId: 2c6fb6c54472e90a
+15:14:12.623 [main] INFO org.apache.kafka.common.utils.AppInfoParser - Kafka startTimeMs: 1776669252623
+  ┌──────────────┬──────────────┬──────────────┬──────────────┐
+  │ Partition    │ Committed    │ End Offset   │ Lag          │
+  ├──────────────┼──────────────┼──────────────┼──────────────┤
+  │ 0           │ 0           │ 3000        │ 3000        │
+  └──────────────┴──────────────┴──────────────┴──────────────┘
+  总 Lag: 3000 条
 
+15:14:12.648 [kafka-admin-client-thread | adminclient-1] INFO org.apache.kafka.common.utils.AppInfoParser - App info kafka.admin.client for adminclient-1 unregistered
+15:14:12.649 [kafka-admin-client-thread | adminclient-1] INFO org.apache.kafka.common.metrics.Metrics - Metrics scheduler closed
+15:14:12.649 [kafka-admin-client-thread | adminclient-1] INFO org.apache.kafka.common.metrics.Metrics - Closing reporter org.apache.kafka.common.metrics.JmxReporter
+15:14:12.649 [kafka-admin-client-thread | adminclient-1] INFO org.apache.kafka.common.metrics.Metrics - Metrics reporters closed
 === 四、积压解决方案 ===
 
   ┌──────────────────────┬──────────────────────────────────────────────┐
