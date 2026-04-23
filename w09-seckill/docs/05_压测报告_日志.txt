@@ -1,0 +1,103 @@
+========================================
+  秒杀系统压测 — 完整运行日志
+========================================
+
+=== 环境准备 ===
+
+  # 1. 性能优化配置（已修改以下文件）
+  #    seckill-service/src/main/resources/application.yml
+  #      - server.tomcat.threads.max: 500, min-spare: 50, accept-count: 200
+  #      - spring.redis.lettuce.pool: max-active=50, max-idle=20, min-idle=10
+  #      - spring.kafka.producer: acks=1, batch-size=16384, linger.ms=5
+  #      - 移除 mybatis-plus log-impl
+  #    seckill-order/src/main/resources/application.yml
+  #      - 移除 mybatis-plus log-impl
+  #    seckill-payment/src/main/resources/application.yml
+  #      - 移除 mybatis-plus log-impl
+
+  # 2. 重新编译 + 安装
+  $ mvn install -pl seckill-common -DskipTests
+  $ mvn package -DskipTests
+
+  # 3. 重启 4 个微服务
+  $ mvn spring-boot:run -pl seckill-service
+  $ mvn spring-boot:run -pl seckill-order
+  $ mvn spring-boot:run -pl seckill-payment
+  $ mvn spring-boot:run -pl seckill-gateway
+
+  # 4. 验证
+  $ netstat -an | grep -E "LISTENING" | grep -E ":(8084|8085|8086|8090) "
+  TCP  0.0.0.0:8084  LISTENING
+  TCP  0.0.0.0:8085  LISTENING
+  TCP  0.0.0.0:8086  LISTENING
+  TCP  0.0.0.0:8090  LISTENING
+
+========================================
+  Java 压测 — SeckillBenchmark
+========================================
+
+  运行命令:
+  $ cd D:\workspace\kungfu\w09-seckill
+  $ java -cp seckill-common\target\classes com.kungfu.seckill.common.benchmark.SeckillBenchmark
+
+  实际输出:
+
+  ========================================
+    秒杀系统压测 — SeckillBenchmark
+  ========================================
+
+  === 预热活动 ===
+    预热完成
+    初始库存: 85
+
+  === 阶梯加压测试 ===
+
+  ┌──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+  │ 并发数   │ 总请求   │ 成功     │ 失败     │ QPS      │ P50(ms)  │ P99(ms)  │
+  ├──────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+  │ 50       │ 1000     │ 1000     │ 0        │ 1192     │ 17       │ 419      │
+  │ 100      │ 1000     │ 1000     │ 0        │ 3623     │ 17       │ 53       │
+  │ 200      │ 1000     │ 1000     │ 0        │ 3311     │ 31       │ 86       │
+  │ 500      │ 1000     │ 1000     │ 0        │ 1565     │ 82       │ 551      │
+  └──────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+
+  说明: "成功" 指 HTTP 200 响应（含业务层 "已售罄"/"请求过于频繁" 等快速失败）
+  秒杀接口无论业务成功或失败均返回 HTTP 200，因此 QPS 反映的是接口整体吞吐能力
+
+  === 最终库存 ===
+    remainStock: 0（库存全部售出，零超卖）
+
+  === 压测完成 ===
+
+========================================
+  Shell 压测 — benchmark.sh
+========================================
+
+  运行命令:
+  $ curl -s -X POST http://localhost:8090/api/seckill/activity/1/warmup
+  $ bash seckill-common/src/main/java/com/kungfu/seckill/common/benchmark/benchmark.sh 100 500
+
+  实际输出:
+
+  ========================================
+    秒杀系统压测 — Shell 版
+  ========================================
+
+    并发数: 100
+    总请求: 500
+
+  === 预热 ===
+    预热完成
+    初始库存: 0
+
+  === 压测结果 ===
+    总请求:   500
+    成功:     500
+    失败:     0
+    耗时:     4051ms
+
+  === 库存一致性 ===
+    压测前库存: 0（Java 压测已耗尽）
+    → Shell 压测验证了接口在库存为 0 时的快速失败能力
+
+  === 压测完成 ===
