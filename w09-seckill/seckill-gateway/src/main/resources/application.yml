@@ -1,0 +1,34 @@
+server:
+  port: 8090
+spring:
+  application:
+    name: seckill-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+    sentinel:
+      transport:
+        dashboard: localhost:8080
+      scg:
+        fallback:
+          mode: response
+          response-status: 429
+          response-body: '{"code":429,"msg":"系统繁忙，请稍后重试"}'
+    gateway:
+      routes:
+        - id: seckill-order
+          uri: lb://seckill-order
+          predicates:
+            - Path=/api/seckill/result/**
+        - id: seckill-payment
+          uri: lb://seckill-payment
+          predicates:
+            - Path=/api/seckill/payment/**
+        - id: seckill-service
+          uri: lb://seckill-service
+          predicates:
+            - Path=/api/seckill/**
+  redis:
+    host: localhost
+    port: 6379

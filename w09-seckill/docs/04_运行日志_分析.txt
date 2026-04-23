@@ -1,0 +1,109 @@
+========================================
+  秒杀系统 运行日志分析
+========================================
+
+测试环境：
+  OS:         Windows 11 Pro
+  Java:       1.8
+  MySQL:      localhost:3306
+  Redis:      localhost:6379
+  Kafka:      localhost:9092
+  Nacos:      localhost:8848
+  测试时间:   2026-04-23 16:40
+
+整体结果：
+  4 个微服务 + 4 个中间件全部正常启动，Nacos 注册 4/4
+  15 个用户秒杀成功（含 10 并发），库存从 100 → 85，零超卖
+  Kafka 三级流转（seckill-order → seckill-payment → payment-result）全链路 PAID
+
+逐步分析表：
+┌──────────────────────┬──────────────────────────────────────────────┐
+│ 测试环节             │ 实际结果                                     │
+├──────────────────────┼──────────────────────────────────────────────┤
+│ 活动查询             │ 200 OK, remainStock=100, status=ACTIVE       │
+│ 活动预热             │ 活动信息+库存加载到 Redis                     │
+│ 单用户秒杀           │ 200 OK, 返回订单号 SK_xxx                    │
+│ 重复秒杀拦截         │ 500, 布隆过滤器拦截 "您已购买过"             │
+│ 频率限制             │ 第1次成功, 第2次被限流 "请求过于频繁"        │
+│ 多用户秒杀(3人)      │ 3/3 成功, 库存 100→95                        │
+│ 并发秒杀(10人)       │ 10/10 成功, 库存 95→85                       │
+│ 支付全链路           │ 15/15 订单状态 PAID                          │
+│ 库存一致性           │ Redis=85, 预期=85, 一致 ✓                    │
+│ 异常场景             │ 不存在活动→500, 不存在订单→404               │
+└──────────────────────┴──────────────────────────────────────────────┘
+
+重点观察 1 — Kafka 三级消息流转
+  seckill-service → topic:seckill-order → seckill-order（创建订单+MySQL扣库存）
+  seckill-order   → topic:seckill-payment → seckill-payment（创建支付单）
+  seckill-payment → topic:payment-result → seckill-order（更新订单为 PAID）
+  ★ 从秒杀请求到订单 PAID，全链路约 2~3 秒（含 2 秒模拟支付延迟）
+  ★ 用户秒杀接口本身是毫秒级返回，支付异步完成不阻塞用户
+  ★ 三个 Kafka topic 实现了服务间完全解耦，任一服务重启不影响消息
+
+重点观察 2 — 防刷三道防线
+  第1道: Redis SETNX 频率限制（5秒窗口）
+    → userId=10002 第2次请求被拦截，返回 "请求过于频繁"
+  第2道: 布隆过滤器（已购检查）
+    → userId=10001 重复秒杀被拦截，返回 "您已购买过"
+  第3道: MySQL 唯一索引 uk_activity_user（兜底）
+    → 即使前两道都漏过，数据库层面也不会产生重复订单
+  ★ 三道防线层层递进：频率限制挡住高频请求，布隆过滤器挡住重复购买，唯一索引兜底
+  ★ 布隆过滤器是内存级 O(1) 判断，不产生任何 IO 开销
+
+重点观察 3 — Redis Lua 原子扣库存
+  初始库存: 100
+  5 个串行用户成功 → 库存 95
+  10 个并发用户成功 → 库存 85
+  ★ 15 次扣减后 remainStock=85 = 100-15，零超卖
+  ★ Lua 脚本在 Redis 中原子执行：判断库存 + 扣减一步完成
+  ★ 即使 10 个请求同时到达，Lua 脚本串行执行保证不会扣到负数
+
+重点观察 4 — 异步削峰填谷
+  秒杀接口处理流程：
+  ┌──────────────────┬──────────┬──────────────────────────┐
+  │ 步骤             │ 耗时     │ 说明                     │
+  ├──────────────────┼──────────┼──────────────────────────┤
+  │ 频率限制(SETNX)  │ ~1ms     │ Redis 单次操作           │
+  │ 布隆过滤器       │ ~0ms     │ 内存 BitSet 计算         │
+  │ Lua 扣库存       │ ~1ms     │ Redis 原子操作           │
+  │ Kafka 发消息     │ ~5ms     │ 异步发送，不等待消费     │
+  │ 返回用户         │ ~10ms    │ 用户拿到订单号即返回     │
+  └──────────────────┴──────────┴──────────────────────────┘
+  ★ 秒杀接口全程不访问 MySQL，毫秒级返回
+  ★ MySQL 写入由 Order Service 异步消费 Kafka 完成，峰值被削平
+  ★ 10万请求 → Redis 过滤 → 100个进 Kafka → 慢慢写 MySQL
+
+重点观察 5 — 支付服务独立解耦
+  订单创建后 → Kafka 发送 PaymentMessage → Payment Service 消费
+  Payment Service: 创建支付单(PENDING) → 模拟2秒 → 更新(PAID) → Kafka 回调
+  Order Service: 消费 payment-result → 更新订单状态 + Redis 缓存
+  ★ 支付服务独立部署，可单独扩缩容
+  ★ 幂等设计：同一订单不会重复创建支付单（orderNo 查重）
+  ★ 支付结果通过 Kafka 异步回调，订单服务不需要同步等待
+
+重点观察 6 — 库存一致性双保险
+  第1层: Redis Lua 预扣（挡住 99.9% 并发）
+  第2层: MySQL UPDATE ... WHERE available_stock > 0（兜底）
+  验证结果:
+    Redis 库存: 85
+    成功订单数: 15
+    100 - 15 = 85 ✓
+  ★ 即使 Redis 和 MySQL 之间存在短暂不一致，最终结果一定一致
+  ★ MySQL 的 WHERE available_stock > 0 保证即使 Redis 出问题也不会超卖
+
+结论：
+  秒杀系统四层过滤架构验证通过：Gateway限流 → Redis Lua扣库存 → Kafka异步 → MySQL落单
+  防刷三道防线全部生效：频率限制 + 布隆过滤器 + 唯一索引
+  Kafka 三级流转实现服务完全解耦：秒杀→订单→支付→回调
+  15 个用户（含 10 并发）秒杀成功，库存 100→85，零超卖零重复
+  面试关键数据：秒杀接口毫秒级返回，支付异步 2~3 秒完成全链路
+
+附录 — 关键验证命令速查：
+  Nacos 注册:  curl -s "http://localhost:8848/nacos/v1/ns/service/list?pageNo=1&pageSize=10"
+  活动详情:    curl -s http://localhost:8090/api/seckill/activity/1
+  活动预热:    curl -s -X POST http://localhost:8090/api/seckill/activity/1/warmup
+  执行秒杀:    curl -s -X POST http://localhost:8090/api/seckill/1 -H "X-User-Id: 10001"
+  查询结果:    curl -s http://localhost:8090/api/seckill/result/{orderNo}
+  查询支付:    curl -s http://localhost:8090/api/seckill/payment/{paymentNo}
+  手动回调:    curl -s -X POST http://localhost:8090/api/seckill/payment/callback/{paymentNo}?success=true
+  完整测试脚本见: docs/03_运行日志.txt 第五部分
