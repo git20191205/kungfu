@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'seckill-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['seckill-service:8084']
+        labels:
+          application: 'seckill-service'
+
+  - job_name: 'seckill-order'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['seckill-order:8085']
+        labels:
+          application: 'seckill-order'
+
+  - job_name: 'seckill-payment'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['seckill-payment:8086']
+        labels:
+          application: 'seckill-payment'
+
+  - job_name: 'seckill-gateway'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['seckill-gateway:8090']
+        labels:
+          application: 'seckill-gateway'

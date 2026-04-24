@@ -32,3 +32,13 @@ spring:
   redis:
     host: localhost
     port: 6379
+
+# 监控端点
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics,gateway
+  metrics:
+    tags:
+      application: ${spring.application.name}
