@@ -2,6 +2,10 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# 告警规则文件
+rule_files:
+  - '/etc/prometheus/alert-rules.yml'
+
 scrape_configs:
   - job_name: 'seckill-service'
     metrics_path: '/actuator/prometheus'

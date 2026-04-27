@@ -1,0 +1,138 @@
+groups:
+  - name: seckill_alerts
+    interval: 30s
+    rules:
+      # ==================== 性能告警 ====================
+      - alert: HighQPS
+        expr: rate(http_server_requests_seconds_count{uri="/api/seckill/{activityId}"}[1m]) > 5000
+        for: 1m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "秒杀接口 QPS 过高"
+          description: "{{ $labels.application }} 秒杀接口 QPS 达到 {{ $value | humanize }}/s，超过阈值 5000"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.99, rate(http_server_requests_seconds_bucket{uri="/api/seckill/{activityId}"}[5m])) > 2
+        for: 2m
+        labels:
+          severity: critical
+          category: performance
+        annotations:
+          summary: "秒杀接口 P99 延迟过高"
+          description: "{{ $labels.application }} 秒杀接口 P99 延迟达到 {{ $value | humanize }}s，超过阈值 2s"
+
+      - alert: HighErrorRate
+        expr: rate(http_server_requests_seconds_count{status=~"5.."}[5m]) / rate(http_server_requests_seconds_count[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "服务错误率过高"
+          description: "{{ $labels.application }} 错误率达到 {{ $value | humanizePercentage }}，超过 1%"
+
+      # ==================== JVM 告警 ====================
+      - alert: HighHeapMemoryUsage
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.8
+        for: 3m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "JVM 堆内存使用率过高"
+          description: "{{ $labels.application }} 堆内存使用率达到 {{ $value | humanizePercentage }}，超过 80%"
+
+      - alert: FrequentFullGC
+        expr: rate(jvm_gc_pause_seconds_count{action="end of major GC"}[10m]) > 0.0033
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "Full GC 频率过高"
+          description: "{{ $labels.application }} Full GC 频率达到 {{ $value | humanize }}/s（超过 2次/小时）"
+
+      - alert: LongGCPause
+        expr: rate(jvm_gc_pause_seconds_sum[5m]) > 0.5
+        for: 3m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "GC 停顿时间过长"
+          description: "{{ $labels.application }} GC 停顿时间达到 {{ $value | humanize }}s/5m，超过 500ms"
+
+      # ==================== 中间件告警 ====================
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Redis 服务不可用"
+          description: "Redis 服务已宕机超过 1 分钟"
+
+      - alert: MySQLDown
+        expr: up{job="mysql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "MySQL 服务不可用"
+          description: "MySQL 服务已宕机超过 1 分钟"
+
+      - alert: KafkaConsumerLag
+        expr: kafka_consumer_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Kafka 消费积压"
+          description: "Kafka 消费者 {{ $labels.consumer_group }} 积压消息数达到 {{ $value }}，超过 1000"
+
+      # ==================== 业务告警 ====================
+      - alert: StockExhausted
+        expr: seckill_stock_remaining == 0
+        for: 1m
+        labels:
+          severity: info
+          category: business
+        annotations:
+          summary: "秒杀库存已售罄"
+          description: "活动 {{ $labels.activity_id }} 库存已售罄"
+
+      - alert: OrderCreationFailed
+        expr: rate(seckill_order_create_failed_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "订单创建失败率过高"
+          description: "订单创建失败率达到 {{ $value | humanize }}/s，超过 10/s"
+
+      # ==================== 服务健康告警 ====================
+      - alert: ServiceDown
+        expr: up{job=~"seckill-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "微服务不可用"
+          description: "{{ $labels.job }} 服务已宕机超过 1 分钟"
+
+      - alert: HighCPUUsage
+        expr: process_cpu_usage > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "CPU 使用率过高"
+          description: "{{ $labels.application }} CPU 使用率达到 {{ $value | humanizePercentage }}，超过 80%"
